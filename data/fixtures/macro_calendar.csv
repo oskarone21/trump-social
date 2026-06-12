@@ -1,0 +1,3 @@
+event_id,event_name,event_type,scheduled_at_utc,importance
+fixture-cpi,CPI,cpi,2026-01-02T13:30:00Z,high
+fixture-fed-speaker,Fed Speaker,fed_speaker,2026-01-05T15:00:00Z,medium
