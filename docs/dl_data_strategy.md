@@ -36,6 +36,7 @@ Provider examples that match the expected adapter contract:
 
 - `https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump`
 - `https://api.scrapecreators.com/v1/truthsocial/user/posts?handle=realDonaldTrump`
+- `https://api.scrapecreators.com/v1/truthsocial/user/posts?user_id=107780257626128497`
 
 Verified source:
 
@@ -71,6 +72,19 @@ PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
   --source /path/to/provider_export.json \
   --source-name paid_provider_dump \
   --provider-name paid_provider
+```
+
+Operational fallback if the live endpoint is unavailable:
+
+```bash
+PYTHONPATH=src python scripts/run_truth_social_data_bootstrap.py \
+  --config configs/research.yaml \
+  --provider-source data/fixtures/posts_truthsocial_provider_sample.json \
+  --provider-source-name provider_dump \
+  --provider-name truthsocial_provider_api \
+  --market-input data/fixtures/nq_1m_sample.csv \
+  --trumpstruth-feed \
+  --use-archive
 ```
 
 If the provider exposes a live HTTP API instead of exports, add auth headers at ingest time:

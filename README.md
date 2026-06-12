@@ -29,6 +29,10 @@ python -m pytest -q
 PYTHONPATH=src python scripts/run_truth_social_data_bootstrap.py --config configs/research.yaml --provider-source "https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump" --provider-api-key-env TRUTH_SOCIAL_PROVIDER_API_KEY --trumpstruth-feed --market-input data/fixtures/nq_1m_sample.csv --market-symbol-root NQ
 ```
 
+If a provider URL is unreachable or fails health checks, the bootstrap flow continues to:
+- `--trumpstruth-feed` (if enabled), then
+- `--use-archive/--archive-url`.
+
 If you do not have a provider endpoint, use `--trumpstruth-feed` or `--use-archive` to test with non-live mirrors.
 
 If the package is not installed, run commands from the repo root with:

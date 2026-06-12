@@ -171,10 +171,15 @@ def _run_provider_ingest(args: argparse.Namespace, report: dict[str, Any]) -> st
     try:
         main(command)
         return posts_out
-    except SystemExit as exc:
-        report["steps"].append({"name": "provider", "status": "failed", "code": str(exc.code)})
-        if int(str(exc.code) or 0) != 0:
-            print(f"provider ingest failed with code {exc.code}; continuing fallback")
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code is None:
+            report["steps"].append({"name": "provider", "status": "failed", "code": exc.__class__.__name__})
+            print(f"provider ingest failed with {exc.__class__.__name__}: {exc}; continuing fallback")
+            return ""
+        report["steps"].append({"name": "provider", "status": "failed", "code": str(code)})
+        if int(str(code) or 0) != 0:
+            print(f"provider ingest failed with code {code}; continuing fallback")
             return ""
         return posts_out
 
@@ -194,10 +199,15 @@ def _run_archive_ingest(args: argparse.Namespace, report: dict[str, Any], archiv
     try:
         main(command)
         return str(ARCHIVE_OUT)
-    except SystemExit as exc:
-        report["steps"].append({"name": "archive", "status": "failed", "code": str(exc.code)})
-        if int(str(exc.code) or 0) != 0:
-            print(f"archive ingest failed with code {exc.code}; stopping")
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code is None:
+            report["steps"].append({"name": "archive", "status": "failed", "code": exc.__class__.__name__})
+            print(f"archive ingest failed with {exc.__class__.__name__}: {exc}")
+            return ""
+        report["steps"].append({"name": "archive", "status": "failed", "code": str(code)})
+        if int(str(code) or 0) != 0:
+            print(f"archive ingest failed with code {code}; stopping")
             return ""
         return str(ARCHIVE_OUT)
 
@@ -225,10 +235,17 @@ def _run_trumpstruth_feed(args: argparse.Namespace, report: dict[str, Any]) -> s
     try:
         main(command)
         return str(TRUMPSTRUTH_OUT)
-    except SystemExit as exc:
-        report["steps"].append({"name": "trumpstruth_feed", "status": "failed", "code": str(exc.code)})
-        if int(str(exc.code) or 0) != 0:
-            print(f"trumpstruth feed ingest failed with code {exc.code}; continuing")
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        if code is None:
+            report["steps"].append(
+                {"name": "trumpstruth_feed", "status": "failed", "code": exc.__class__.__name__}
+            )
+            print(f"trumpstruth feed ingest failed with {exc.__class__.__name__}: {exc}")
+            return ""
+        report["steps"].append({"name": "trumpstruth_feed", "status": "failed", "code": str(code)})
+        if int(str(code) or 0) != 0:
+            print(f"trumpstruth feed ingest failed with code {code}; continuing")
             return ""
         return str(TRUMPSTRUTH_OUT)
 
@@ -244,7 +261,10 @@ def _run_archive_freshness(args: argparse.Namespace, archive_url: str, posts_pat
         posts_path,
     ]
     command.extend(["--url", archive_url])
-    main(command)
+    try:
+        main(command)
+    except Exception as exc:
+        print(f"archive freshness check failed with {exc.__class__.__name__}: {exc}")
 
 
 def _run_provider_freshness(args: argparse.Namespace, posts_path: str, report: dict[str, Any]) -> None:
@@ -272,8 +292,15 @@ def _run_provider_freshness(args: argparse.Namespace, posts_path: str, report: d
 
     try:
         main(command)
-    except SystemExit as exc:
-        report["steps"].append({"name": "provider_freshness", "status": "failed", "code": str(exc.code)})
+    except Exception as exc:
+        code = getattr(exc, "code", None)
+        report["steps"].append(
+            {
+                "name": "provider_freshness",
+                "status": "failed",
+                "code": str(code) if code is not None else exc.__class__.__name__,
+            }
+        )
 
 
 def _ingest_market(args: argparse.Namespace, report: dict[str, Any]) -> str:
