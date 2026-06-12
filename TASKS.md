@@ -18,11 +18,13 @@ Implemented:
 - Rule-based sentiment/topic/tradeability classifier.
 - Weighted whipsaw detector and Optuna tuning report.
 - Static dashboard and optional FastAPI service.
+- External NQ/MNQ market-file adapter for Databento-style or generic 1-minute OHLCV exports.
+- Archive-to-market event builder for processed CNN posts plus canonical market bars.
 
 Not yet implemented:
 
-- Licensed historical NQ/MNQ market-data ingestion at the scale required for research.
-- Real event dataset joining CNN archive posts to NQ/MNQ bars.
+- Licensed historical NQ/MNQ market-data file has not been supplied at the scale required for research.
+- Full real event dataset cannot be produced until licensed bars covering the archive period are provided.
 - Human-reviewed sentiment/topic/tradeability labels.
 - Production-grade LightGBM walk-forward baseline on real archive + market data.
 - FinBERT, DeBERTa/DistilBERT, sentence-transformer, cross-encoder/NLI, or LSTM models.
@@ -51,7 +53,7 @@ Not yet implemented:
 - CME confirms MNQ is `$2 x Nasdaq-100 index` with minimum tick `0.25`; tick value is `$0.50`.
 - Required research data is licensed NQ/MNQ intraday OHLCV or tick/order-book data.
 - Candidate vendors:
-  - Databento `GLBX.MDP3` for CME Globex data.
+  - Databento `GLBX.MDP3` for CME Globex data. This is the selected first integration path.
   - CME DataMine.
   - Broker export from a platform used for execution/account simulation.
 - Free delayed/proxy data is acceptable only for smoke tests, not for research conclusions.
@@ -92,21 +94,22 @@ Acceptance:
 
 ## Phase 2: Market Data Acquisition
 
-- [ ] Select primary licensed provider: Databento, CME DataMine, or broker export.
+- [x] Select primary provider path: Databento `GLBX.MDP3` or equivalent broker export.
 - [ ] Document license and permitted research/live use.
-- [ ] Implement provider-specific adapter in `src/sentiment_engine/ingestion/`.
-- [ ] Support NQ and MNQ 1-minute OHLCV first.
+- [x] Implement local export adapter in `src/sentiment_engine/ingestion/market_files.py`.
+- [x] Support NQ and MNQ 1-minute OHLCV first.
 - [ ] Add optional tick/order-book support for spread, slippage, and latency research.
 - [ ] Implement active-contract selection and continuous-contract mapping.
 - [ ] Store raw contract bars and adjusted continuous bars separately.
 - [ ] Implement CME session calendar, holidays, DST, maintenance breaks, and rollover flags.
 - [ ] Add market-data audit:
   - [ ] expected minute count
-  - [ ] valid minute count
+  - [x] valid minute count
   - [ ] missing bar count
   - [ ] stale/zero-volume bars
-  - [ ] duplicate timestamps
-  - [ ] invalid OHLC rows
+  - [x] zero-volume bars
+  - [x] duplicate timestamps
+  - [x] invalid OHLC rows
   - [ ] rollover periods
   - [ ] holiday/short sessions
 
@@ -120,6 +123,7 @@ Acceptance:
 ## Phase 3: Event Dataset
 
 - [ ] Join all Trump posts to first valid NQ bar at or after `received_at_utc`.
+- [x] Implement archive-to-market event builder for processed posts and canonical bars.
 - [ ] Retain feed latency.
 - [ ] Generate 5m/15m/30m targets.
 - [ ] Generate MFE/MAE/range/realized-volatility targets.
@@ -328,7 +332,7 @@ Acceptance:
 
 - [x] `scripts/run_full_pipeline.py` for fixture path.
 - [ ] `scripts/run_archive_backfill.py`.
-- [ ] `scripts/run_real_event_build.py`.
+- [x] `scripts/run_real_event_build.py`.
 - [ ] `scripts/run_model_training.py`.
 - [ ] `scripts/run_walk_forward.py`.
 - [ ] `scripts/run_shadow_report.py`.
@@ -348,8 +352,8 @@ Acceptance:
 
 1. Ingest the full CNN archive to a raw immutable local snapshot.
 2. Add full archive audit and freshness monitor.
-3. Choose market-data source and implement the provider adapter.
-4. Join archive posts to real NQ/MNQ bars.
+3. Supply licensed NQ/MNQ 1-minute bars covering the archive period.
+4. Run `ingest-market-file` and `build-archive-events` on that licensed data.
 5. Generate real event targets.
 6. Produce first real event-study report.
 7. Add label-review workflow.
@@ -361,6 +365,8 @@ Acceptance:
 
 ```bash
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-archive --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 25
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-market-file --input data/fixtures/nq_1m_sample.csv --source-name fixture_canonical --symbol-root NQ --out data/processed/external_market_bars.parquet
+python scripts/run_real_event_build.py --posts data/processed/posts.parquet --market data/processed/external_market_bars.parquet --out data/processed/real_events.parquet --limit-posts 8
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
 ```
@@ -369,6 +375,8 @@ Latest known verification:
 
 - Archive smoke ingest: 25 rows, 25 valid, 0 duplicates, 4 empty-text/media-only.
 - Full archive ingest: 33,899 rows, 33,899 valid, 0 duplicates, 6,392 empty-text rows, 5,830 media-only rows.
+- Market-file ingest path: 340 canonical fixture bars ingested from CSV.
+- Archive event builder path: 8 events, 0 skipped posts using processed posts plus canonical bars.
 - Full fixture pipeline: completed.
-- Tests: 10 passed.
-- Browser dashboard check via localhost: title rendered, backtest metric present, 8 event rows.
+- Tests: 12 passed.
+- Browser dashboard check via localhost: title rendered, 10 metrics, 8 event rows.

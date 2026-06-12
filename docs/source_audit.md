@@ -21,13 +21,15 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 | Source | Verified status | Use in this repo |
 |---|---|---|
 | CME product specifications | CME lists NQ as `$20 x Nasdaq-100 index` with a `0.25` index-point minimum tick. CME lists MNQ as `$2 x Nasdaq-100 index` with a `0.25` index-point minimum tick. | Instrument config validation: NQ tick value is `$5`, MNQ tick value is `$0.50`. |
-| Broker/Databento/exported OHLCV | Required for serious NQ/MNQ research. Licensing, continuous-contract logic, session handling, roll policy, and timestamp quality must be checked per source. | CSV/Parquet import first. API adapters later. |
+| Databento `GLBX.MDP3` exported OHLCV | Databento documents `GLBX.MDP3` as CME Globex MDP 3.0 futures/options coverage and documents OHLCV aggregate bars at 1-minute intervals with `ts_event` as the bar start timestamp. | Implemented via `ingest-market-file` for CSV/parquet exports. Requires user-supplied licensed data. |
+| Broker/exported OHLCV | Required fallback for serious NQ/MNQ research if Databento is not used. Licensing, continuous-contract logic, session handling, roll policy, and timestamp quality must be checked per source. | Supported when the file has generic timestamp/open/high/low/close/volume columns. API adapters later. |
 | Economic calendar CSV | Needed to reduce false attribution around CPI, FOMC, NFP, Fed speakers, auctions, and earnings windows. | Local CSV fixture/import first. |
 
 ## Data-Quality Gates
 
 - All timestamps must be timezone-aware UTC after ingestion.
 - Post target alignment uses the first market bar opening at or after `received_at_utc`.
+- External market files are normalized to canonical `MarketBar` rows before event construction.
 - Market bars crossing contract roll gaps, maintenance breaks, holidays, or invalid sessions are excluded from target calculation.
 - Dedupe is deterministic by `post_id` and `content_hash`.
 - Empty-text and media-only posts are counted explicitly because they are valid records but weak text-model training rows.

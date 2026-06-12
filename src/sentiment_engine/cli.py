@@ -6,6 +6,7 @@ from pathlib import Path
 from sentiment_engine.config import ensure_output_dirs, load_config
 from sentiment_engine.backtest.simulator import run_kill_switch_backtest
 from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market_csv
+from sentiment_engine.ingestion.market_files import DATABENTO_OHLCV_SOURCE, load_market_file
 from sentiment_engine.ingestion.posts_cnn_archive import (
     archive_posts_to_frame,
     audit_cnn_archive_posts,
@@ -17,6 +18,7 @@ from sentiment_engine.models.tuning import tune_whipsaw_parameters
 from sentiment_engine.models.whipsaw import build_whipsaw_report, score_whipsaw_events
 from sentiment_engine.live.dashboard import build_dashboard
 from sentiment_engine.live.signal_engine import latest_signal_from_scores
+from sentiment_engine.research.archive_events import build_archive_event_dataset
 from sentiment_engine.research.event_study import build_event_study_report
 from sentiment_engine.research.events import build_event_dataset
 from sentiment_engine.utils.io import write_dataframe, write_json
@@ -32,7 +34,19 @@ def main(argv: list[str] | None = None) -> None:
     archive_parser.add_argument("--limit", type=int, default=None)
     archive_parser.add_argument("--out", default=None)
     subparsers.add_parser("ingest-market")
+    market_file_parser = subparsers.add_parser("ingest-market-file")
+    market_file_parser.add_argument("--input", required=True)
+    market_file_parser.add_argument("--source-name", default=DATABENTO_OHLCV_SOURCE)
+    market_file_parser.add_argument("--symbol-root", choices=["NQ", "MNQ"], default="NQ")
+    market_file_parser.add_argument("--contract-symbol", default=None)
+    market_file_parser.add_argument("--continuous-symbol", default=None)
+    market_file_parser.add_argument("--out", default=None)
     subparsers.add_parser("build-events")
+    archive_events_parser = subparsers.add_parser("build-archive-events")
+    archive_events_parser.add_argument("--posts", default=None)
+    archive_events_parser.add_argument("--market", default=None)
+    archive_events_parser.add_argument("--out", default=None)
+    archive_events_parser.add_argument("--limit-posts", type=int, default=None)
     subparsers.add_parser("event-study")
     subparsers.add_parser("label-assist")
     subparsers.add_parser("train-classifier")
@@ -52,8 +66,20 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_archive(config, args.url, args.limit, args.out)
     elif args.command == "ingest-market":
         _ingest_market(config)
+    elif args.command == "ingest-market-file":
+        _ingest_market_file(
+            config,
+            args.input,
+            args.source_name,
+            args.symbol_root,
+            args.contract_symbol,
+            args.continuous_symbol,
+            args.out,
+        )
     elif args.command == "build-events":
         _build_events(config)
+    elif args.command == "build-archive-events":
+        _build_archive_events(config, args.posts, args.market, args.out, args.limit_posts)
     elif args.command == "event-study":
         _event_study(config)
     elif args.command == "label-assist":
@@ -103,13 +129,70 @@ def _ingest_market(config) -> None:
     print(f"ingested {len(bars)} market bars")
 
 
+def _ingest_market_file(
+    config,
+    input_path: str,
+    source_name: str,
+    symbol_root: str,
+    contract_symbol: str | None,
+    continuous_symbol: str | None,
+    output_path: str | None,
+) -> None:
+    bars = load_market_file(
+        input_path,
+        source_name=source_name,
+        symbol_root=symbol_root,
+        contract_symbol=contract_symbol,
+        continuous_symbol=continuous_symbol,
+    )
+    target = (
+        Path(output_path) if output_path else config.paths.processed_dir / "market_bars.parquet"
+    )
+    write_dataframe(bars, target)
+    write_json(config.paths.report_dir / "market_ingestion_audit.json", audit_market_bars(bars))
+    print(f"ingested {len(bars)} market bars from {input_path}")
+
+
 def _build_events(config) -> None:
     posts = load_fixture_posts(config.paths.posts_fixture)
     bars = load_market_csv(config.paths.market_fixture)
     result = build_event_dataset(posts, bars, config)
     write_dataframe(result.events, config.paths.processed_dir / "events.parquet")
-    write_json(config.paths.report_dir / "event_build_audit.json", {"skipped_posts": result.skipped_posts})
+    write_json(
+        config.paths.report_dir / "event_build_audit.json",
+        {"skipped_posts": result.skipped_posts},
+    )
     print(f"built {len(result.events)} events")
+
+
+def _build_archive_events(
+    config,
+    posts_path: str | None,
+    market_path: str | None,
+    output_path: str | None,
+    limit_posts: int | None,
+) -> None:
+    posts_source = (
+        Path(posts_path) if posts_path else config.paths.processed_dir / "cnn_archive_posts.parquet"
+    )
+    market_source = (
+        Path(market_path) if market_path else config.paths.processed_dir / "market_bars.parquet"
+    )
+    target = (
+        Path(output_path) if output_path else config.paths.processed_dir / "real_events.parquet"
+    )
+    result = build_archive_event_dataset(
+        posts_path=posts_source,
+        market_path=market_source,
+        config=config,
+        limit_posts=limit_posts,
+    )
+    write_dataframe(result.events, target)
+    write_json(config.paths.report_dir / "real_event_build_audit.json", result.audit)
+    print(
+        "built archive events: "
+        f"events={len(result.events)}, skipped={len(result.skipped_posts)}"
+    )
 
 
 def _event_study(config) -> None:

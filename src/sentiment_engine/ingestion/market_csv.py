@@ -56,6 +56,12 @@ def audit_market_bars(frame: pd.DataFrame) -> dict[str, Any]:
     valid = frame[frame["is_valid_bar"]]
     gaps = valid["ts_open_utc"].diff().dropna()
     gap_count = int((gaps > pd.Timedelta(minutes=1)).sum())
+    duplicate_bar_keys = frame.duplicated(["ts_open_utc", "contract_symbol"]).sum()
+    invalid_ohlc = (
+        (frame["high"] < frame[["open", "close"]].max(axis=1))
+        | (frame["low"] > frame[["open", "close"]].min(axis=1))
+        | (frame["volume"] < 0)
+    )
     return {
         "row_count": int(len(frame)),
         "valid_rows": int(len(valid)),
@@ -63,7 +69,12 @@ def audit_market_bars(frame: pd.DataFrame) -> dict[str, Any]:
         "min_ts_open_utc": isoformat_z(valid["ts_open_utc"].min().to_pydatetime()) if len(valid) else None,
         "max_ts_open_utc": isoformat_z(valid["ts_open_utc"].max().to_pydatetime()) if len(valid) else None,
         "gap_count_gt_1m": gap_count,
+        "duplicate_bar_keys": int(duplicate_bar_keys),
+        "invalid_ohlc_rows": int(invalid_ohlc.sum()),
+        "zero_volume_rows": int((frame["volume"] == 0).sum()),
         "symbols": sorted(frame["symbol_root"].dropna().unique().tolist()),
+        "contract_symbols": sorted(frame["contract_symbol"].dropna().unique().tolist()),
+        "source_names": sorted(frame["source_name"].dropna().unique().tolist()),
     }
 
 

@@ -92,6 +92,8 @@ class MarketBar(BaseModel):
     def validate_ohlc(self) -> "MarketBar":
         if self.ts_close_utc <= self.ts_open_utc:
             raise ValueError("ts_close_utc must be later than ts_open_utc")
+        if not self.is_valid_bar:
+            return self
         if self.high < max(self.open, self.close):
             raise ValueError("high cannot be below open/close")
         if self.low > min(self.open, self.close):

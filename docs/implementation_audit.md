@@ -27,6 +27,8 @@ This audit answers what is actually implemented in the current repo. It is based
 | Timing model | Yes | Empirical hazard/count features | `src/sentiment_engine/models/timing.py` |
 | Optuna tuning | Yes | TPE optimization of whipsaw weights/thresholds | `src/sentiment_engine/models/tuning.py` |
 | CNN archive adapter | Yes | Real post backfill ingestion | `src/sentiment_engine/ingestion/posts_cnn_archive.py` |
+| Market export adapter | Yes | Databento-style or generic OHLCV CSV/parquet normalization | `src/sentiment_engine/ingestion/market_files.py` |
+| Archive event builder | Yes | Processed posts joined to canonical market bars | `src/sentiment_engine/research/archive_events.py` |
 | Transformer / FinBERT / DeBERTa | No | Not implemented | Real labels and larger data required first |
 | LSTM / deep sequence model | No | Not implemented | Not justified for v1 fixtures |
 
@@ -63,7 +65,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-10 passed, 1 warning
+12 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -103,6 +105,25 @@ Result:
 - Date range: `2022-02-14T15:54:32.528000Z` to `2026-06-12T13:59:27.160000Z`.
 
 This verifies the post backfill path at full archive scale. It still does not solve the required NQ/MNQ market-data join or human-label problem.
+
+## External Market File Path
+
+Implemented commands:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-market-file --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml build-archive-events --posts data/processed/cnn_archive_posts.parquet --market data/processed/market_bars.parquet
+```
+
+The market adapter supports canonical bars, Databento-style `ts_event` OHLCV exports, and generic timestamp/open/high/low/close/volume files. It writes canonical `MarketBar` rows and a market-ingestion audit with valid rows, invalid rows, duplicate bar keys, invalid OHLC rows, zero-volume rows, contracts, and source names.
+
+This is an executable ingestion and event-construction path. It still requires a user-supplied licensed market file covering the Truth Social archive period before real ML/DL claims can be made.
+
+Latest local command-path verification:
+
+- `ingest-market-file` loaded 340 canonical fixture bars from CSV.
+- `scripts/run_real_event_build.py` built 8 archive-style events with 0 skipped posts from processed posts and canonical bars.
+- Browser dashboard verification over localhost rendered the title, 10 metrics, and 8 event rows.
 
 ## Classifier Results
 
@@ -354,6 +375,7 @@ Current fixture data passes these checks:
 - 0 duplicate post IDs.
 - 340 of 340 market bars valid.
 - 0 invalid market rows.
+- External market-file audit reports duplicate bar keys, invalid OHLC rows, zero-volume rows, contract symbols, and source names.
 - 0 skipped event-build posts.
 - All internal timestamps are timezone-aware UTC.
 - Post targets align to the first market bar after `received_at_utc`.
@@ -369,6 +391,7 @@ Known limitation:
 
 - No real Truth Social provider integration has been validated.
 - No real NQ/MNQ licensed historical data has been loaded.
+- Real-market file ingestion is implemented, but no licensed archive-covering market file is present in the repo.
 - No human-labeled dataset exists.
 - No transformer, FinBERT, DeBERTa, LSTM, or production-grade deep-learning model is trained.
 - LightGBM and PyTorch MLP are fixture smoke baselines only.

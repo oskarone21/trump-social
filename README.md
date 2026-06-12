@@ -35,6 +35,8 @@ PYTHONPATH=src python -m sentiment_engine run-full --config configs/research.yam
 PYTHONPATH=src python -m sentiment_engine ingest-posts --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 100
 PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
+PYTHONPATH=src python -m sentiment_engine build-archive-events --config configs/research.yaml --posts data/processed/cnn_archive_posts.parquet --market data/processed/market_bars.parquet
 PYTHONPATH=src python -m sentiment_engine build-events --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine train-classifier --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine score-whipsaw --config configs/research.yaml
@@ -57,6 +59,18 @@ For a plain-English status of implemented models, results, metrics, tuned parame
 For the source and deep-learning readiness path, see [docs/dl_data_strategy.md](docs/dl_data_strategy.md).
 
 For the complete outstanding implementation plan, see [TASKS.md](TASKS.md).
+
+## Real Data Workflow
+
+The post side is implemented through the CNN archive adapter. The market side expects a licensed NQ/MNQ 1-minute OHLCV CSV/parquet export, preferably Databento `GLBX.MDP3` `ohlcv-1m` or an equivalent broker export:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
+PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
+python scripts/run_real_event_build.py --market data/processed/market_bars.parquet
+```
+
+This writes `data/processed/real_events.parquet` and `reports/real_event_build_audit.json`. It is not a research-ready result until the supplied market file covers the archive period, passes coverage/roll/session audits, and labels are reviewed.
 
 ## API
 
