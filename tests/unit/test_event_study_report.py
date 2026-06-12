@@ -26,4 +26,6 @@ def test_event_study_report_includes_path_dependent_target_summary() -> None:
     assert report["cluster_summary"]["cluster_count"] == 4
     assert report["cluster_summary"]["isolated_event_count"] == 1
     assert report["cluster_summary"]["burst_event_count"] == 7
+    assert report["macro_summary"]["macro_blackout_event_count"] == 1
+    assert report["macro_summary"]["blackout_event_type_counts"] == {"fed_speaker": 1}
     assert "mean_realised_volatility_30m_ticks" in next(iter(report["segments"].values()))

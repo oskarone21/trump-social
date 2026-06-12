@@ -35,6 +35,7 @@ def build_event_study_report(events: pd.DataFrame) -> dict[str, Any]:
         "horizons": horizons,
         "target_summary": _target_summary(events),
         "cluster_summary": _cluster_summary(events),
+        "macro_summary": _macro_summary(events),
         "segments": _segment_summary(events),
     }
 
@@ -76,6 +77,23 @@ def _cluster_summary(events: pd.DataFrame) -> dict[str, Any]:
             str(size): int(count)
             for size, count in cluster_sizes.value_counts().sort_index().items()
         },
+    }
+
+
+def _macro_summary(events: pd.DataFrame) -> dict[str, Any]:
+    if "is_macro_blackout" not in events:
+        return {}
+    blackout = events[events["is_macro_blackout"]]
+    return {
+        "macro_blackout_event_count": int(events["is_macro_blackout"].sum()),
+        "nearest_macro_event_type_counts": events["nearest_macro_event_type"]
+        .fillna("none")
+        .value_counts()
+        .to_dict(),
+        "blackout_event_type_counts": blackout["nearest_macro_event_type"]
+        .fillna("none")
+        .value_counts()
+        .to_dict(),
     }
 
 

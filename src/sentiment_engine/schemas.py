@@ -131,6 +131,11 @@ class EventTargetRecord(BaseModel):
     realised_volatility_5m_ticks: float
     realised_volatility_15m_ticks: float
     realised_volatility_30m_ticks: float
+    is_macro_blackout: bool
+    nearest_macro_event_id: str | None = None
+    nearest_macro_event_type: str | None = None
+    nearest_macro_event_importance: str | None = None
+    minutes_to_nearest_macro_event: float | None = None
     market_whipsaw_flag: bool
     tradeability_label: TradeabilityLabel
 

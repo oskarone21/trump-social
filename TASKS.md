@@ -139,7 +139,7 @@ Acceptance:
 - [x] Implement event clustering and de-overlap metadata.
 - [x] Add isolated-post and burst-post flags.
 - [ ] Materialize isolated-post and burst-post subset files for real-data analysis.
-- [ ] Add macro-event blackout flags.
+- [x] Add macro-event blackout flags.
 - [ ] Add matched control windows by:
   - [ ] day of week
   - [ ] session bucket
@@ -402,5 +402,6 @@ Latest known verification:
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Full fixture pipeline: completed.
-- Tests: 28 passed.
+- Event-study report: macro blackout summary generated from the configured macro calendar.
+- Tests: 29 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

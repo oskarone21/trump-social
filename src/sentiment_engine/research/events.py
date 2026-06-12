@@ -6,6 +6,7 @@ from datetime import timedelta
 import pandas as pd
 
 from sentiment_engine.config import EngineConfig
+from sentiment_engine.ingestion.calendar_csv import load_macro_calendar
 from sentiment_engine.schemas import EventTargetRecord, PostRecord
 from sentiment_engine.utils.hashing import stable_hash
 
@@ -28,6 +29,7 @@ def build_event_dataset(
     )
     records: list[dict[str, object]] = []
     skipped: list[dict[str, str]] = []
+    macro_calendar = _load_macro_calendar(config)
     for post in posts:
         future_bars = valid_bars[valid_bars["ts_open_utc"] >= pd.Timestamp(post.received_at_utc)]
         if future_bars.empty:
@@ -39,6 +41,9 @@ def build_event_dataset(
         if horizon_values is None:
             skipped.append({"post_id": post.post_id, "reason": "insufficient_forward_bars"})
             continue
+        horizon_values.update(
+            _macro_context(pd.Timestamp(post.received_at_utc), macro_calendar, config)
+        )
         event_id = stable_hash(f"{post.post_id}|{event_ts.isoformat()}")[:16]
         event_record = EventTargetRecord(
             event_id=event_id,
@@ -95,6 +100,48 @@ def _add_event_clusters(events: pd.DataFrame, config: EngineConfig) -> pd.DataFr
     clustered["is_isolated_event"] = clustered["event_cluster_size"].eq(1)
     clustered["is_burst_event"] = clustered["event_cluster_size"].gt(1)
     return clustered.drop(columns=["_received_ts"])
+
+
+def _load_macro_calendar(config: EngineConfig) -> pd.DataFrame:
+    path = config.paths.macro_calendar_fixture
+    if not path.exists():
+        return pd.DataFrame()
+    return load_macro_calendar(path)
+
+
+def _macro_context(
+    received_at: pd.Timestamp, calendar: pd.DataFrame, config: EngineConfig
+) -> dict[str, object]:
+    if calendar.empty:
+        return _empty_macro_context()
+    scheduled = calendar.copy()
+    received = pd.Timestamp(received_at).tz_convert("UTC")
+    scheduled["minutes_from_post"] = (
+        (scheduled["scheduled_at_utc"] - received).dt.total_seconds() / 60.0
+    )
+    scheduled["abs_minutes_from_post"] = scheduled["minutes_from_post"].abs()
+    nearest = scheduled.sort_values(["abs_minutes_from_post", "scheduled_at_utc"]).iloc[0]
+    before = config.windows.macro_blackout_before_minutes
+    after = config.windows.macro_blackout_after_minutes
+    minutes = float(nearest["minutes_from_post"])
+    is_blackout = -after <= minutes <= before
+    return {
+        "is_macro_blackout": bool(is_blackout),
+        "nearest_macro_event_id": str(nearest["event_id"]),
+        "nearest_macro_event_type": str(nearest["event_type"]),
+        "nearest_macro_event_importance": str(nearest["importance"]),
+        "minutes_to_nearest_macro_event": round(minutes, 4),
+    }
+
+
+def _empty_macro_context() -> dict[str, object]:
+    return {
+        "is_macro_blackout": False,
+        "nearest_macro_event_id": None,
+        "nearest_macro_event_type": None,
+        "nearest_macro_event_importance": None,
+        "minutes_to_nearest_macro_event": None,
+    }
 
 
 def _horizon_values(
