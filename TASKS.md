@@ -112,10 +112,10 @@ Acceptance:
 - [ ] Store raw contract bars and adjusted continuous bars separately.
 - [ ] Implement CME session calendar, holidays, DST, maintenance breaks, and rollover flags.
 - [ ] Add market-data audit:
-  - [ ] expected minute count
+  - [x] expected minute count
   - [x] valid minute count
-  - [ ] missing bar count
-  - [ ] stale/zero-volume bars
+  - [x] missing bar count
+  - [x] stale/zero-volume bars
   - [x] zero-volume bars
   - [x] duplicate timestamps
   - [x] invalid OHLC rows
@@ -402,6 +402,8 @@ Latest known verification:
 - Archive freshness check: remote HTTP OK, local archive dedupe/text-quality/max-timestamp audit written.
 - Archive backfill script: local fixture path verified with 3 rows and remote freshness skipped.
 - Market-file ingest path: 340 canonical fixture bars ingested from CSV.
+- Market-data audit: expected minutes, missing bars, stale bars, zero-volume rows,
+  duplicate keys, and invalid OHLC rows reported.
 - Archive event builder path: 8 events, 0 skipped posts using processed posts plus canonical bars.
 - Label queue export: 5 review rows, post-event target columns excluded.
 - Reviewed-label import: 3 sample human labels imported and audited.
@@ -411,5 +413,5 @@ Latest known verification:
 - Dashboard: FinBERT inference summary visible when `reports/finbert_inference_report.json` exists.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
-- Tests: 33 passed.
+- Tests: 34 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

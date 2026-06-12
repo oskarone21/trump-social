@@ -41,7 +41,29 @@ def test_databento_style_ohlcv_export_normalises_to_market_bars(tmp_path) -> Non
     assert bars.iloc[0]["open"] == 20000.0
     assert bars.iloc[0]["contract_symbol"] == "NQH6"
     assert audit["valid_rows"] == 2
+    assert audit["expected_minute_count"] == 2
+    assert audit["missing_bar_count"] == 0
+    assert audit["stale_bar_rows"] == 0
     assert audit["source_names"] == [DATABENTO_OHLCV_SOURCE]
+
+
+def test_market_audit_counts_missing_and_stale_bars() -> None:
+    frame = pd.DataFrame(
+        [
+            _market_row("2026-01-02T14:30:00Z", open_price=20000.0, volume=10),
+            _market_row("2026-01-02T14:32:00Z", open_price=20001.0, volume=0),
+            _market_row("2026-01-02T14:33:00Z", open_price=20001.0, volume=0),
+        ]
+    )
+
+    audit = audit_market_bars(frame)
+
+    assert audit["expected_minute_count"] == 4
+    assert audit["valid_rows"] == 3
+    assert audit["missing_bar_count"] == 1
+    assert audit["gap_count_gt_1m"] == 1
+    assert audit["stale_bar_rows"] == 1
+    assert audit["zero_volume_rows"] == 2
 
 
 def test_archive_events_build_from_processed_posts_and_market_bars(tmp_path) -> None:
@@ -69,3 +91,26 @@ def test_archive_events_build_from_processed_posts_and_market_bars(tmp_path) -> 
     assert result.audit["event_count"] == 8
     assert result.audit["skipped_post_count"] == 0
     assert events_path.exists()
+
+
+def _market_row(timestamp: str, *, open_price: float, volume: int) -> dict[str, object]:
+    return {
+        "symbol_root": "NQ",
+        "contract_symbol": "NQH6",
+        "continuous_symbol": "NQ.c.0",
+        "ts_open_utc": pd.Timestamp(timestamp),
+        "ts_close_utc": pd.Timestamp(timestamp) + pd.Timedelta(minutes=1),
+        "open": open_price,
+        "high": open_price + 1.0,
+        "low": open_price - 1.0,
+        "close": open_price,
+        "volume": volume,
+        "trade_count": volume,
+        "vwap": open_price,
+        "source_name": "fixture",
+        "is_rth": True,
+        "session_id": "2026-01-02",
+        "is_rollover_period": False,
+        "is_holiday_session": False,
+        "is_valid_bar": True,
+    }

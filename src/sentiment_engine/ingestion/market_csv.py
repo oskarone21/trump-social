@@ -30,6 +30,8 @@ MARKET_REQUIRED_COLUMNS = [
 ]
 
 BOOLEAN_COLUMNS = ["is_rth", "is_rollover_period", "is_holiday_session", "is_valid_bar"]
+OHLC_COLUMNS = ["open", "high", "low", "close"]
+MARKET_AUDIT_GROUP_COLUMNS = ["contract_symbol", "session_id"]
 
 
 def load_market_csv(path: str | Path) -> pd.DataFrame:
@@ -54,8 +56,7 @@ def load_market_csv(path: str | Path) -> pd.DataFrame:
 
 def audit_market_bars(frame: pd.DataFrame) -> dict[str, Any]:
     valid = frame[frame["is_valid_bar"]]
-    gaps = valid["ts_open_utc"].diff().dropna()
-    gap_count = int((gaps > pd.Timedelta(minutes=1)).sum())
+    coverage = _coverage_audit(valid)
     duplicate_bar_keys = frame.duplicated(["ts_open_utc", "contract_symbol"]).sum()
     invalid_ohlc = (
         (frame["high"] < frame[["open", "close"]].max(axis=1))
@@ -66,16 +67,59 @@ def audit_market_bars(frame: pd.DataFrame) -> dict[str, Any]:
         "row_count": int(len(frame)),
         "valid_rows": int(len(valid)),
         "invalid_rows": int((~frame["is_valid_bar"]).sum()),
-        "min_ts_open_utc": isoformat_z(valid["ts_open_utc"].min().to_pydatetime()) if len(valid) else None,
-        "max_ts_open_utc": isoformat_z(valid["ts_open_utc"].max().to_pydatetime()) if len(valid) else None,
-        "gap_count_gt_1m": gap_count,
+        "min_ts_open_utc": (
+            isoformat_z(valid["ts_open_utc"].min().to_pydatetime()) if len(valid) else None
+        ),
+        "max_ts_open_utc": (
+            isoformat_z(valid["ts_open_utc"].max().to_pydatetime()) if len(valid) else None
+        ),
+        "expected_minute_count": coverage["expected_minute_count"],
+        "missing_bar_count": coverage["missing_bar_count"],
+        "gap_count_gt_1m": coverage["gap_count_gt_1m"],
         "duplicate_bar_keys": int(duplicate_bar_keys),
         "invalid_ohlc_rows": int(invalid_ohlc.sum()),
+        "stale_bar_rows": coverage["stale_bar_rows"],
         "zero_volume_rows": int((frame["volume"] == 0).sum()),
         "symbols": sorted(frame["symbol_root"].dropna().unique().tolist()),
         "contract_symbols": sorted(frame["contract_symbol"].dropna().unique().tolist()),
         "source_names": sorted(frame["source_name"].dropna().unique().tolist()),
     }
+
+
+def _coverage_audit(valid: pd.DataFrame) -> dict[str, int]:
+    if valid.empty:
+        return {
+            "expected_minute_count": 0,
+            "missing_bar_count": 0,
+            "gap_count_gt_1m": 0,
+            "stale_bar_rows": 0,
+        }
+    unique_bars = valid.drop_duplicates(["ts_open_utc", "contract_symbol"]).sort_values(
+        MARKET_AUDIT_GROUP_COLUMNS + ["ts_open_utc"]
+    )
+    expected = 0
+    gaps = 0
+    stale_rows = 0
+    for _group_key, group in unique_bars.groupby(MARKET_AUDIT_GROUP_COLUMNS):
+        timestamps = group["ts_open_utc"]
+        expected += int((timestamps.max() - timestamps.min()) / pd.Timedelta(minutes=1)) + 1
+        gaps += int((timestamps.diff().dropna() > pd.Timedelta(minutes=1)).sum())
+        stale_rows += _stale_bar_count(group)
+    return {
+        "expected_minute_count": int(expected),
+        "missing_bar_count": int(expected - len(unique_bars)),
+        "gap_count_gt_1m": int(gaps),
+        "stale_bar_rows": int(stale_rows),
+    }
+
+
+def _stale_bar_count(group: pd.DataFrame) -> int:
+    stale_mask = (
+        group[OHLC_COLUMNS].eq(group[OHLC_COLUMNS].shift()).all(axis=1)
+        & group["volume"].eq(0)
+        & group["trade_count"].eq(0)
+    )
+    return int(stale_mask.sum())
 
 
 def _validate_rows(frame: pd.DataFrame) -> None:

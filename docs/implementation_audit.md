@@ -71,7 +71,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-33 passed, 1 warning
+34 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -131,7 +131,7 @@ PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml build-archive-events --posts data/processed/cnn_archive_posts.parquet --market data/processed/market_bars.parquet
 ```
 
-The market adapter supports canonical bars, Databento-style `ts_event` OHLCV exports, and generic timestamp/open/high/low/close/volume files. It writes canonical `MarketBar` rows and a market-ingestion audit with valid rows, invalid rows, duplicate bar keys, invalid OHLC rows, zero-volume rows, contracts, and source names.
+The market adapter supports canonical bars, Databento-style `ts_event` OHLCV exports, and generic timestamp/open/high/low/close/volume files. It writes canonical `MarketBar` rows and a market-ingestion audit with expected minutes, missing bars, valid rows, invalid rows, stale rows, duplicate bar keys, invalid OHLC rows, zero-volume rows, contracts, and source names.
 
 This is an executable ingestion and event-construction path. It still requires a user-supplied licensed market file covering the Truth Social archive period before real ML/DL claims can be made.
 
@@ -375,7 +375,7 @@ Data quality:
 - Max feed lag
 - Market bar row count
 - Valid/invalid market rows
-- Market-bar gaps greater than one minute
+- Expected minutes, missing bars, stale bars, and market-bar gaps greater than one minute
 - Symbols present
 - Skipped event-build posts
 
@@ -473,7 +473,7 @@ Current fixture data passes these checks:
 - 0 duplicate post IDs.
 - 340 of 340 market bars valid.
 - 0 invalid market rows.
-- External market-file audit reports duplicate bar keys, invalid OHLC rows, zero-volume rows, contract symbols, and source names.
+- External market-file audit reports expected minute count, missing bars, stale rows, duplicate bar keys, invalid OHLC rows, zero-volume rows, contract symbols, and source names.
 - Label queue audit confirms post-event target columns are excluded from reviewer files.
 - Human-label audit reports versioned label counts, reviewer counts, duplicate event/reviewer rows, and agreement metrics for multi-review events.
 - Interpretation report records readiness gates and refuses research-ready status until data and label gates pass.
@@ -489,7 +489,7 @@ Current fixture data passes these checks:
 
 Known limitation:
 
-- The one reported market gap greater than one minute is the intentional gap between the two fixture trading days, not an intraday missing-bar error.
+- Market coverage is audited within each `contract_symbol` and `session_id`. Full CME holiday, maintenance-break, and rollover-aware expected-session calendars are still required for real research.
 - Real data cleanliness has not been proven. The source audit says real historical/live sources still require licensing, schema, latency, and coverage checks before research claims.
 
 ## What Is Still Not Done
