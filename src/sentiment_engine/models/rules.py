@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from sentiment_engine.models import taxonomy as tx
 
@@ -33,7 +34,7 @@ def classify_text(text: str) -> RuleClassification:
 def _topic_scores(lower_text: str) -> dict[str, float]:
     scores: dict[str, float] = {}
     for topic, keywords in tx.TOPIC_KEYWORDS.items():
-        hits = sum(1 for keyword in keywords if keyword in lower_text)
+        hits = sum(1 for keyword in keywords if _contains_keyword(lower_text, keyword))
         if hits:
             scores[topic] = round(min(0.95, 0.50 + 0.15 * hits), 4)
     return dict(sorted(scores.items(), key=lambda item: item[1], reverse=True))
@@ -89,7 +90,13 @@ def _tradeability(sentiment: str, confidence: float, topics: dict[str, float]) -
 
 
 def _keyword_hits(lower_text: str, keywords: list[str]) -> list[str]:
-    return [keyword for keyword in keywords if keyword in lower_text]
+    return [keyword for keyword in keywords if _contains_keyword(lower_text, keyword)]
+
+
+def _contains_keyword(lower_text: str, keyword: str) -> bool:
+    if " " in keyword:
+        return keyword in lower_text
+    return re.search(rf"\b{re.escape(keyword)}\b", lower_text) is not None
 
 
 def _confidence(keyword_hits: list[str], topics: dict[str, float]) -> float:

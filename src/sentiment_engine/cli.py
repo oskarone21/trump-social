@@ -4,9 +4,11 @@ import argparse
 from pathlib import Path
 
 from sentiment_engine.config import ensure_output_dirs, load_config
+from sentiment_engine.backtest.simulator import run_kill_switch_backtest
 from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market_csv
 from sentiment_engine.ingestion.posts_fixture import audit_posts, load_fixture_posts, posts_to_frame
 from sentiment_engine.models.baselines import build_labeled_events, train_tradeability_baselines
+from sentiment_engine.models.whipsaw import build_whipsaw_report, score_whipsaw_events
 from sentiment_engine.research.event_study import build_event_study_report
 from sentiment_engine.research.events import build_event_dataset
 from sentiment_engine.utils.io import write_dataframe, write_json
@@ -22,6 +24,8 @@ def main(argv: list[str] | None = None) -> None:
     subparsers.add_parser("event-study")
     subparsers.add_parser("label-assist")
     subparsers.add_parser("train-classifier")
+    subparsers.add_parser("score-whipsaw")
+    subparsers.add_parser("backtest")
     args = parser.parse_args(argv)
     config = load_config(args.config)
     ensure_output_dirs(config)
@@ -37,6 +41,10 @@ def main(argv: list[str] | None = None) -> None:
         _label_assist(config)
     elif args.command == "train-classifier":
         _train_classifier(config, args.config)
+    elif args.command == "score-whipsaw":
+        _score_whipsaw(config)
+    elif args.command == "backtest":
+        _backtest(config)
 
 
 def _ingest_posts(config) -> None:
@@ -105,6 +113,23 @@ def _train_classifier(config, config_path: str) -> None:
     print(f"classifier baselines evaluated on {report['test_rows']} temporal holdout rows")
 
 
+def _score_whipsaw(config) -> None:
+    labeled = _read_or_build_labeled_events(config)
+    scored = score_whipsaw_events(labeled, config)
+    write_dataframe(scored, config.paths.processed_dir / "whipsaw_scores.parquet")
+    write_json(config.paths.report_dir / "whipsaw_report.json", build_whipsaw_report(scored))
+    print(f"scored whipsaw risk for {len(scored)} events")
+
+
+def _backtest(config) -> None:
+    scored = _read_or_build_whipsaw_scores(config)
+    _trades, report = run_kill_switch_backtest(config.paths.trades_fixture, scored, config)
+    print(
+        "backtest complete: "
+        f"before={report['net_pnl_before_usd']}, after={report['net_pnl_after_usd']}"
+    )
+
+
 def _read_or_build_events(config):
     events_path = config.paths.processed_dir / "events.parquet"
     if not Path(events_path).exists():
@@ -112,6 +137,24 @@ def _read_or_build_events(config):
     import pandas as pd
 
     return pd.read_parquet(events_path)
+
+
+def _read_or_build_labeled_events(config):
+    labeled_path = config.paths.processed_dir / "labeled_events.parquet"
+    if not Path(labeled_path).exists():
+        _label_assist(config)
+    import pandas as pd
+
+    return pd.read_parquet(labeled_path)
+
+
+def _read_or_build_whipsaw_scores(config):
+    scored_path = config.paths.processed_dir / "whipsaw_scores.parquet"
+    if not Path(scored_path).exists():
+        _score_whipsaw(config)
+    import pandas as pd
+
+    return pd.read_parquet(scored_path)
 
 
 if __name__ == "__main__":
