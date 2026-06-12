@@ -4,7 +4,7 @@ Verification date: 2026-06-12.
 
 ## Problem
 
-The implementation now includes a PyTorch TF-IDF MLP smoke baseline so the DL training/reporting path can be executed. It still does not train FinBERT, DeBERTa, LSTM, or other production-grade deep-learning models because the repo only has local fixtures. That remains the right constraint: a transformer trained on eight synthetic rows would be fake progress.
+The implementation now includes a PyTorch TF-IDF MLP smoke baseline so the DL training/reporting path can be executed, plus a FinBERT inference baseline for financial-tone scoring when model weights are available. It still does not fine-tune FinBERT, DeBERTa, LSTM, or other production-grade deep-learning models because the repo only has local fixtures. That remains the right constraint: a transformer trained on eight synthetic rows would be fake progress.
 
 ## Practical Source Path
 
@@ -90,8 +90,17 @@ The repo also writes visible ML/DL smoke reports during the fixture pipeline:
 - `reports/classifier_baseline_report.json`
 - `reports/lightgbm_baseline_report.json`
 - `reports/neural_baseline_report.json`
+- `reports/finbert_inference_report.json` when `scripts/run_finbert_inference.py` is run
 
-The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. Probabilistic baselines report log loss, multiclass Brier score, expected calibration error, and confidence-threshold abstention diagnostics. The neural report is a PyTorch MLP over TF-IDF/context features. It proves the deterministic training/evaluation/report path works; it is not a substitute for FinBERT, DeBERTa, or a human-labeled validation set.
+The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. Probabilistic baselines report log loss, multiclass Brier score, expected calibration error, and confidence-threshold abstention diagnostics. The neural report is a PyTorch MLP over TF-IDF/context features. FinBERT inference is reported separately because it is a financial-tone score, not a tradeability model trained on this event set. These paths prove deterministic training/evaluation/reporting mechanics; they are not substitutes for a human-labeled validation set.
+
+FinBERT inference verification:
+
+```bash
+python scripts/run_finbert_inference.py --config configs/research.yaml --limit 2
+```
+
+The verified local run used `ProsusAI/finbert` and scored 2 fixture rows. Both rows were classified as positive financial tone. After the model files are cached, add `--local-files-only` for deterministic offline reruns. This proves model loading, tokenization, scoring, and report writing; it does not prove predictive power.
 
 ## DL Readiness Gate
 

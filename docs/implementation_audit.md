@@ -7,7 +7,7 @@ This audit answers what is actually implemented in the current repo. It is based
 ## Bottom Line
 
 - The repo implements a fixture-backed research and live-advisory vertical slice.
-- It implements a PyTorch TF-IDF MLP smoke baseline, but it does not implement production-grade transformer models.
+- It implements a PyTorch TF-IDF MLP smoke baseline and FinBERT inference path, but it does not implement production-grade transformer fine-tuning.
 - It does not prove a tradable edge.
 - It implements three executable ML/DL baseline paths: TF-IDF logistic regression, optional LightGBM, and optional PyTorch TF-IDF MLP.
 - It implements rule-based sentiment/topic labels, deterministic event targets, weighted whipsaw scoring, Optuna tuning reports, a kill-switch backtest, a signal JSON contract, an optional FastAPI service, and a static dashboard.
@@ -23,6 +23,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | Linear SVM baseline | Yes | TF-IDF + linear SVM | `src/sentiment_engine/models/baselines.py` |
 | LightGBM tradeability baseline | Yes | Optional LightGBM text/context baseline | `src/sentiment_engine/models/baselines.py` |
 | Neural tradeability smoke baseline | Yes | Optional PyTorch MLP over TF-IDF/context features | `src/sentiment_engine/models/baselines.py` |
+| FinBERT inference baseline | Yes | Optional transformer financial-tone inference | `src/sentiment_engine/models/finbert.py` |
 | Naive baseline | Yes | Majority-class baseline | `src/sentiment_engine/models/baselines.py` |
 | Whipsaw detector | Yes | Weighted transparent scoring model | `src/sentiment_engine/models/whipsaw.py` |
 | Timing model | Yes | Empirical hazard/count features | `src/sentiment_engine/models/timing.py` |
@@ -34,7 +35,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | Archive event builder | Yes | Processed posts joined to canonical market bars | `src/sentiment_engine/research/archive_events.py` |
 | Human label workflow | Yes | Queue export, reviewed-label validation, audit, agreement metrics | `src/sentiment_engine/labels/review.py` |
 | Result interpretation | Yes | Model comparison, readiness gates, Markdown/JSON reports | `src/sentiment_engine/research/interpretation.py` |
-| Transformer / FinBERT / DeBERTa | No | Not implemented | Real labels and larger data required first |
+| Transformer fine-tuning / DeBERTa | No | Not implemented | Real labels and larger data required first |
 | LSTM / deep sequence model | No | Not implemented | Not justified for v1 fixtures |
 
 ## Results From Latest Full Run
@@ -70,7 +71,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-31 passed, 1 warning
+33 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -224,8 +225,29 @@ Additional model reports:
 
 - `reports/lightgbm_baseline_report.json`
 - `reports/neural_baseline_report.json`
+- `reports/finbert_inference_report.json` when `scripts/run_finbert_inference.py` is run
 
-Both reports include explicit methodology notes warning that fixture metrics are not evidence of economic edge.
+These reports include explicit methodology notes warning that fixture metrics are not evidence of economic edge.
+
+## FinBERT Inference Verification
+
+Command:
+
+```bash
+python scripts/run_finbert_inference.py --config configs/research.yaml --limit 2 --scores-out /private/tmp/finbert_scores_test.parquet
+```
+
+Result:
+
+- Status: `scored`
+- Model: `ProsusAI/finbert`
+- Mode: inference-only
+- Event rows: `2`
+- Scored rows: `2`
+- Label counts: `{"positive": 2}`
+- Mean positive/negative/neutral scores: `0.763602 / 0.018655 / 0.217743`
+
+This verifies transformer model loading, tokenization, scoring, and report generation. It is not fine-tuning and it is not evidence that FinBERT predicts NQ/MNQ outcomes.
 
 ## Whipsaw Results
 
@@ -473,7 +495,7 @@ Known limitation:
 - No real NQ/MNQ licensed historical data has been loaded.
 - Real-market file ingestion is implemented, but no licensed archive-covering market file is present in the repo.
 - Only a small sample human-label fixture exists; no real human-labeled dataset exists.
-- No transformer, FinBERT, DeBERTa, LSTM, or production-grade deep-learning model is trained.
+- No transformer, FinBERT, DeBERTa, LSTM, or production-grade deep-learning model is fine-tuned.
 - LightGBM and PyTorch MLP are fixture smoke baselines only.
 - No statistical significance claim can be made from fixtures.
 - No Optuna result should be promoted without real walk-forward validation.

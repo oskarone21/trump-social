@@ -33,7 +33,8 @@ Not yet implemented:
 - Full real event dataset cannot be produced until licensed bars covering the archive period are provided.
 - A large human-reviewed sentiment/topic/tradeability dataset.
 - Production-grade LightGBM walk-forward baseline on real archive + market data.
-- FinBERT, DeBERTa/DistilBERT, sentence-transformer, cross-encoder/NLI, or LSTM models.
+- Fine-tuned FinBERT, DeBERTa/DistilBERT, sentence-transformer, cross-encoder/NLI,
+  or LSTM models.
 - True probability calibration layer and confidence-threshold selection on validation folds.
 - Statistical interpretation of ML/DL results on real out-of-sample data.
 - Live provider integration with an SLA/contract and heartbeat.
@@ -219,7 +220,7 @@ Acceptance:
   - [x] `sentence-transformers`
   - [x] `accelerate`
 - [x] Implement PyTorch TF-IDF MLP fixture smoke baseline and report.
-- [ ] Implement FinBERT inference baseline.
+- [x] Implement FinBERT inference baseline.
 - [ ] Implement DistilBERT/DeBERTa classifier fine-tuning.
 - [ ] Implement sentence-transformer embeddings for clustering/retrieval.
 - [ ] Implement cross-encoder/NLI contradiction scorer.
@@ -373,7 +374,7 @@ Acceptance:
 7. Review at least 500 event rows using `export-label-queue` and `import-reviewed-labels`.
 8. Train LightGBM baseline on real event data.
 9. Add calibrated probability thresholds and abstention on validation folds.
-10. Add FinBERT inference baseline.
+10. Add calibrated FinBERT comparison against TF-IDF/LightGBM after real labels exist.
 11. Fine-tune DeBERTa/DistilBERT only after human labels exist.
 
 ## Current Verification Commands
@@ -388,6 +389,7 @@ PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-reviewed-labels --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml interpret-results
 python scripts/run_model_training.py configs/research.yaml
+python scripts/run_finbert_inference.py --config configs/research.yaml --limit 8
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
 ```
@@ -403,7 +405,9 @@ Latest known verification:
 - Label queue export: 5 review rows, post-event target columns excluded.
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
+- FinBERT inference path: unit tested with deterministic classifier and verified with
+  `ProsusAI/finbert` on 2 fixture rows.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
-- Tests: 31 passed.
+- Tests: 33 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.
