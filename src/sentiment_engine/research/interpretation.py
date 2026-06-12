@@ -90,6 +90,7 @@ def _model_rows(classifier_report: dict[str, Any] | None) -> list[dict[str, Any]
         ("naive", "Naive majority", "baseline"),
         ("rules", "Rules", "rules"),
         ("tfidf_logreg", "TF-IDF logistic regression", "ml"),
+        ("tfidf_linear_svm", "TF-IDF linear SVM", "ml"),
         ("lightgbm", "LightGBM text/context", "ml"),
         ("neural_tfidf_mlp", "PyTorch TF-IDF MLP", "dl_smoke"),
     ]

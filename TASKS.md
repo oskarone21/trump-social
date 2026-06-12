@@ -14,8 +14,10 @@ Implemented:
 - Full CNN archive ingest verified on 2026-06-12 with 33,899 posts.
 - CNN archive freshness/dedupe monitor.
 - TF-IDF + logistic-regression baseline.
+- TF-IDF + linear SVM baseline.
 - LightGBM classifier smoke baseline when optional `ml` dependencies are installed.
 - PyTorch TF-IDF MLP smoke baseline when optional `dl` dependencies are installed.
+- Probability-quality metrics for probabilistic baselines: log loss, multiclass Brier score, and expected calibration error.
 - Rule-based sentiment/topic/tradeability classifier.
 - Weighted whipsaw detector and Optuna tuning report.
 - Static dashboard and optional FastAPI service.
@@ -31,6 +33,7 @@ Not yet implemented:
 - A large human-reviewed sentiment/topic/tradeability dataset.
 - Production-grade LightGBM walk-forward baseline on real archive + market data.
 - FinBERT, DeBERTa/DistilBERT, sentence-transformer, cross-encoder/NLI, or LSTM models.
+- True probability calibration layer and confidence-threshold selection on validation folds.
 - Statistical interpretation of ML/DL results on real out-of-sample data.
 - Live provider integration with an SLA/contract and heartbeat.
 
@@ -177,11 +180,12 @@ Acceptance:
 - [x] Rule baseline.
 - [x] TF-IDF + logistic regression baseline.
 - [x] LightGBM fixture smoke baseline with leakage-safe text/context features.
-- [ ] TF-IDF + linear SVM baseline.
+- [x] TF-IDF + linear SVM baseline.
 - [ ] LightGBM classifier on real text + market context features.
 - [ ] LightGBM regressor/quantile model for move size and range.
 - [ ] Calibrated probability outputs.
 - [ ] Abstention thresholds.
+- [x] Probability-quality metrics: log loss, multiclass Brier score, and ECE.
 - [ ] SHAP or permutation feature importance.
 
 Metrics:
@@ -340,7 +344,7 @@ Acceptance:
 - [x] `scripts/run_full_pipeline.py` for fixture path.
 - [ ] `scripts/run_archive_backfill.py`.
 - [x] `scripts/run_real_event_build.py`.
-- [ ] `scripts/run_model_training.py`.
+- [x] `scripts/run_model_training.py`.
 - [ ] `scripts/run_walk_forward.py`.
 - [ ] `scripts/run_shadow_report.py`.
 - [ ] Add CI test matrix:
@@ -365,8 +369,9 @@ Acceptance:
 6. Produce first real event-study report.
 7. Review at least 500 event rows using `export-label-queue` and `import-reviewed-labels`.
 8. Train LightGBM baseline on real event data.
-9. Add FinBERT inference baseline.
-10. Fine-tune DeBERTa/DistilBERT only after human labels exist.
+9. Add calibrated probability thresholds and abstention on validation folds.
+10. Add FinBERT inference baseline.
+11. Fine-tune DeBERTa/DistilBERT only after human labels exist.
 
 ## Current Verification Commands
 
@@ -378,6 +383,7 @@ python scripts/run_real_event_build.py --posts data/processed/posts.parquet --ma
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-label-queue --limit 5
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-reviewed-labels --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml interpret-results
+python scripts/run_model_training.py configs/research.yaml
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
 ```
@@ -393,5 +399,5 @@ Latest known verification:
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Full fixture pipeline: completed.
-- Tests: 22 passed.
+- Tests: 27 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

@@ -8,9 +8,10 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix, f1_score
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, log_loss
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import SVC
 
 from sentiment_engine.features.text_features import enrich_with_text_features
 from sentiment_engine.models.metadata import model_metadata
@@ -20,12 +21,14 @@ TARGET_COLUMN = "tradeability_label"
 TEXT_COLUMN = "text_clean"
 TEMPORAL_COLUMN = "received_at_utc"
 TFIDF_MODEL_VERSION = "tfidf_logreg_v1"
+SVM_MODEL_VERSION = "tfidf_linear_svm_v1"
 LIGHTGBM_MODEL_VERSION = "lightgbm_text_context_v1"
 NEURAL_MODEL_VERSION = "neural_tfidf_mlp_v1"
 CLASSIFIER_REPORT_NAME = "classifier_baseline_report.json"
 LIGHTGBM_REPORT_NAME = "lightgbm_baseline_report.json"
 NEURAL_REPORT_NAME = "neural_baseline_report.json"
 TFIDF_MODEL_NAME = "tfidf_tradeability_baseline.joblib"
+SVM_MODEL_NAME = "tfidf_linear_svm_tradeability_baseline.joblib"
 LIGHTGBM_MODEL_NAME = "lightgbm_tradeability_baseline.joblib"
 NEURAL_MODEL_NAME = "neural_tfidf_mlp.pt"
 CONTEXT_FEATURE_COLUMNS = [
@@ -66,7 +69,12 @@ def train_tradeability_baselines(
 
     naive_predictions = _naive_predictions(train[TARGET_COLUMN], len(test))
     rule_predictions = test["rule_tradeability_label"].tolist()
-    tfidf_model, tfidf_predictions = _fit_tfidf(train, test, seed, tfidf_max_features)
+    tfidf_model, tfidf_predictions, tfidf_probabilities, tfidf_probability_labels = (
+        _fit_tfidf_logreg(train, test, seed, tfidf_max_features)
+    )
+    svm_model, svm_predictions, svm_probabilities, svm_probability_labels = _fit_tfidf_svm(
+        train, test, seed, tfidf_max_features
+    )
     lightgbm_report = train_lightgbm_baseline(
         train,
         test,
@@ -101,7 +109,18 @@ def train_tradeability_baselines(
         "target_labels": target_labels,
         "naive": _metrics(test[TARGET_COLUMN].tolist(), naive_predictions),
         "rules": _metrics(test[TARGET_COLUMN].tolist(), rule_predictions),
-        "tfidf_logreg": _metrics(test[TARGET_COLUMN].tolist(), tfidf_predictions),
+        "tfidf_logreg": _metrics(
+            test[TARGET_COLUMN].tolist(),
+            tfidf_predictions,
+            y_proba=tfidf_probabilities,
+            proba_labels=tfidf_probability_labels,
+        ),
+        "tfidf_linear_svm": _metrics(
+            test[TARGET_COLUMN].tolist(),
+            svm_predictions,
+            y_proba=svm_probabilities,
+            proba_labels=svm_probability_labels,
+        ),
         "lightgbm": lightgbm_report,
         "neural_tfidf_mlp": neural_report,
         "methodology_notes": [
@@ -110,6 +129,8 @@ def train_tradeability_baselines(
             "Labels are weak research labels until human adjudication exists.",
             "LightGBM and neural MLP reports are included only when optional dependencies "
             "are installed.",
+            "Probability metrics are reported only for models that expose class "
+            "probabilities on the holdout set.",
         ],
     }
 
@@ -119,11 +140,23 @@ def train_tradeability_baselines(
     write_dataframe(labeled_events, report_dir / "labeled_events_snapshot.csv")
     if tfidf_model is not None:
         joblib.dump(tfidf_model, model_dir / TFIDF_MODEL_NAME)
+    if svm_model is not None:
+        joblib.dump(svm_model, model_dir / SVM_MODEL_NAME)
     write_json(
         model_dir / "tfidf_tradeability_baseline.metadata.json",
         model_metadata(
             model_name="tradeability_baseline",
             model_version=TFIDF_MODEL_VERSION,
+            config_path=config_path,
+            data=labeled_events,
+            extra={"target": TARGET_COLUMN, "temporal_test_fraction": temporal_test_fraction},
+        ),
+    )
+    write_json(
+        model_dir / "tfidf_linear_svm_tradeability_baseline.metadata.json",
+        model_metadata(
+            model_name="tradeability_linear_svm_baseline",
+            model_version=SVM_MODEL_VERSION,
             config_path=config_path,
             data=labeled_events,
             extra={"target": TARGET_COLUMN, "temporal_test_fraction": temporal_test_fraction},
@@ -172,14 +205,21 @@ def train_lightgbm_baseline(
         verbosity=-1,
     )
     model.fit(train_features, label_encoder.transform(train[TARGET_COLUMN].astype(str)))
-    predictions = label_encoder.inverse_transform(model.predict(test_features)).tolist()
+    predicted_indexes = model.predict(test_features)
+    predictions = label_encoder.inverse_transform(predicted_indexes).tolist()
+    probabilities = model.predict_proba(test_features)
     report = {
         "status": "trained",
         "model_version": LIGHTGBM_MODEL_VERSION,
         "feature_view": "tfidf_text_plus_live_time_text_context",
         "train_rows": int(len(train)),
         "test_rows": int(len(test)),
-        "metrics": _metrics(test[TARGET_COLUMN].astype(str).tolist(), predictions),
+        "metrics": _metrics(
+            test[TARGET_COLUMN].astype(str).tolist(),
+            predictions,
+            y_proba=probabilities,
+            proba_labels=label_encoder.classes_.tolist(),
+        ),
         "methodology_notes": [
             "This baseline excludes post-event target columns to avoid look-ahead leakage.",
             "Fixture metrics are a smoke check only; real comparison needs chronological "
@@ -260,7 +300,9 @@ def train_neural_text_baseline(
 
     model.eval()
     with torch.no_grad():
-        predicted_indexes = torch.argmax(model(x_test), dim=1).numpy()
+        logits = model(x_test)
+        probabilities = torch.softmax(logits, dim=1).numpy()
+        predicted_indexes = torch.argmax(logits, dim=1).numpy()
     predictions = label_encoder.inverse_transform(predicted_indexes).tolist()
     report = {
         "status": "trained",
@@ -274,7 +316,12 @@ def train_neural_text_baseline(
         "test_rows": int(len(test)),
         "epochs": NEURAL_EPOCHS,
         "learning_rate": NEURAL_LEARNING_RATE,
-        "metrics": _metrics(test[TARGET_COLUMN].astype(str).tolist(), predictions),
+        "metrics": _metrics(
+            test[TARGET_COLUMN].astype(str).tolist(),
+            predictions,
+            y_proba=probabilities,
+            proba_labels=label_encoder.classes_.tolist(),
+        ),
         "methodology_notes": [
             "This is a PyTorch MLP smoke baseline, not a trained FinBERT or DeBERTa model.",
             "It uses a temporal holdout and excludes post-event target columns.",
@@ -311,12 +358,12 @@ def train_neural_text_baseline(
     return report
 
 
-def _fit_tfidf(
+def _fit_tfidf_logreg(
     train: pd.DataFrame, test: pd.DataFrame, seed: int, tfidf_max_features: int
-) -> tuple[Pipeline | None, list[str]]:
+) -> tuple[Pipeline | None, list[str], np.ndarray | None, list[str] | None]:
     unique_labels = train[TARGET_COLUMN].nunique()
     if unique_labels < 2:
-        return None, _naive_predictions(train[TARGET_COLUMN], len(test))
+        return None, _naive_predictions(train[TARGET_COLUMN], len(test)), None, None
     model = Pipeline(
         steps=[
             ("tfidf", TfidfVectorizer(max_features=tfidf_max_features, ngram_range=(1, 2))),
@@ -328,7 +375,36 @@ def _fit_tfidf(
     )
     model.fit(train[TEXT_COLUMN].astype(str), train[TARGET_COLUMN].astype(str))
     predictions = model.predict(test[TEXT_COLUMN].astype(str)).tolist()
-    return model, predictions
+    probabilities = model.predict_proba(test[TEXT_COLUMN].astype(str))
+    probability_labels = model.named_steps["classifier"].classes_.tolist()
+    return model, predictions, probabilities, probability_labels
+
+
+def _fit_tfidf_svm(
+    train: pd.DataFrame, test: pd.DataFrame, seed: int, tfidf_max_features: int
+) -> tuple[Pipeline | None, list[str], np.ndarray | None, list[str] | None]:
+    unique_labels = train[TARGET_COLUMN].nunique()
+    if unique_labels < 2:
+        return None, _naive_predictions(train[TARGET_COLUMN], len(test)), None, None
+    model = Pipeline(
+        steps=[
+            ("tfidf", TfidfVectorizer(max_features=tfidf_max_features, ngram_range=(1, 2))),
+            (
+                "classifier",
+                SVC(
+                    kernel="linear",
+                    class_weight="balanced",
+                    probability=True,
+                    random_state=seed,
+                ),
+            ),
+        ]
+    )
+    model.fit(train[TEXT_COLUMN].astype(str), train[TARGET_COLUMN].astype(str))
+    predictions = model.predict(test[TEXT_COLUMN].astype(str)).tolist()
+    probabilities = model.predict_proba(test[TEXT_COLUMN].astype(str))
+    probability_labels = model.named_steps["classifier"].classes_.tolist()
+    return model, predictions, probabilities, probability_labels
 
 
 def _text_context_matrices(
@@ -378,10 +454,16 @@ def _naive_predictions(labels: pd.Series, count: int) -> list[str]:
     return [str(majority)] * count
 
 
-def _metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
+def _metrics(
+    y_true: list[str],
+    y_pred: list[str],
+    *,
+    y_proba: np.ndarray | None = None,
+    proba_labels: list[str] | None = None,
+) -> dict[str, Any]:
     labels = sorted(set(y_true).union(y_pred))
     matrix = confusion_matrix(y_true, y_pred, labels=labels)
-    return {
+    metrics = {
         "macro_f1": round(
             float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
             6,
@@ -394,3 +476,63 @@ def _metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
             "rows": matrix.tolist(),
         },
     }
+    if y_proba is not None and proba_labels is not None:
+        metrics["probability_metrics"] = _probability_metrics(y_true, y_proba, proba_labels)
+    return metrics
+
+
+def _probability_metrics(
+    y_true: list[str], y_proba: np.ndarray, proba_labels: list[str]
+) -> dict[str, Any]:
+    aligned, labels = _align_probabilities(y_true, y_proba, proba_labels)
+    true_indexes = np.array([labels.index(label) for label in y_true])
+    one_hot = np.zeros_like(aligned)
+    one_hot[np.arange(len(y_true)), true_indexes] = 1.0
+    predicted_indexes = aligned.argmax(axis=1)
+    confidences = aligned.max(axis=1)
+    correctness = (predicted_indexes == true_indexes).astype(float)
+    brier_score = float(np.mean(np.sum((aligned - one_hot) ** 2, axis=1)))
+    calibration_error = _expected_calibration_error(confidences, correctness)
+    return {
+        "multiclass_brier_score": round(brier_score, 6),
+        "negative_log_loss": round(float(log_loss(y_true, aligned, labels=labels)), 6),
+        "expected_calibration_error": round(float(calibration_error), 6),
+        "class_labels": labels,
+    }
+
+
+def _align_probabilities(
+    y_true: list[str], y_proba: np.ndarray, proba_labels: list[str]
+) -> tuple[np.ndarray, list[str]]:
+    labels = sorted(set(y_true).union(proba_labels))
+    aligned = np.zeros((len(y_true), len(labels)), dtype=float)
+    source_indexes = {label: index for index, label in enumerate(proba_labels)}
+    for target_index, label in enumerate(labels):
+        source_index = source_indexes.get(label)
+        if source_index is not None:
+            aligned[:, target_index] = y_proba[:, source_index]
+    row_sums = aligned.sum(axis=1)
+    missing = row_sums <= 0
+    if missing.any():
+        aligned[missing, :] = 1.0 / len(labels)
+        row_sums = aligned.sum(axis=1)
+    return aligned / row_sums[:, None], labels
+
+
+def _expected_calibration_error(
+    confidences: np.ndarray, correctness: np.ndarray, n_bins: int = 10
+) -> float:
+    if len(confidences) == 0:
+        return 0.0
+    ece = 0.0
+    for lower in np.linspace(0.0, 1.0, n_bins, endpoint=False):
+        upper = lower + 1.0 / n_bins
+        if upper >= 1.0:
+            mask = (confidences >= lower) & (confidences <= upper)
+        else:
+            mask = (confidences >= lower) & (confidences < upper)
+        if not mask.any():
+            continue
+        confidence_gap = abs(float(confidences[mask].mean()) - float(correctness[mask].mean()))
+        ece += float(mask.mean()) * confidence_gap
+    return ece

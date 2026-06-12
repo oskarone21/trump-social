@@ -20,6 +20,7 @@ This audit answers what is actually implemented in the current repo. It is based
 |---|---:|---|---|
 | Keyword/topic classifier | Yes | Rule-based NLP baseline | `src/sentiment_engine/models/rules.py` |
 | Tradeability baseline | Yes | TF-IDF + logistic regression | `src/sentiment_engine/models/baselines.py` |
+| Linear SVM baseline | Yes | TF-IDF + linear SVM | `src/sentiment_engine/models/baselines.py` |
 | LightGBM tradeability baseline | Yes | Optional LightGBM text/context baseline | `src/sentiment_engine/models/baselines.py` |
 | Neural tradeability smoke baseline | Yes | Optional PyTorch MLP over TF-IDF/context features | `src/sentiment_engine/models/baselines.py` |
 | Naive baseline | Yes | Majority-class baseline | `src/sentiment_engine/models/baselines.py` |
@@ -200,10 +201,22 @@ Metrics:
 | Naive majority baseline | 0.3333 | 0.2500 | Predicts majority class only |
 | Rule tradeability baseline | 0.3333 | 0.1667 | Text/topic heuristics |
 | TF-IDF + logistic regression | 0.6667 | 0.6667 | ML baseline; tiny holdout |
+| TF-IDF linear SVM | 0.6667 | 0.6667 | ML baseline with probability-quality metrics |
 | LightGBM text/context | 0.6667 | 0.6667 | Optional ML baseline; excludes post-event target columns |
 | PyTorch TF-IDF MLP | 0.3333 | 0.2500 | DL smoke baseline, not a transformer |
 
 The macro F1 result is not statistically meaningful because the fixture holdout has only 3 rows. It is an integration check proving the evaluation path works.
+
+Probability-quality metrics are now reported for probabilistic baselines:
+
+| Model | Log loss | Multiclass Brier | ECE |
+|---|---:|---:|---:|
+| TF-IDF logistic regression | `1.016433` | `0.614711` | `0.280567` |
+| TF-IDF linear SVM | `1.044926` | `0.631067` | `0.171423` |
+| LightGBM text/context | `0.556703` | `0.358804` | `0.305041` |
+| PyTorch TF-IDF MLP | `0.971820` | `0.751118` | `0.553442` |
+
+These calibration-style metrics are smoke-test outputs only; they are not a calibrated probability policy. Real abstention thresholds still require validation folds and enough labeled events.
 
 Additional model reports:
 
