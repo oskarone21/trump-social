@@ -28,6 +28,32 @@ If the package is not installed, run commands from the repo root with:
 PYTHONPATH=src python -m sentiment_engine run-full --config configs/research.yaml
 ```
 
+## Main Commands
+
+```bash
+PYTHONPATH=src python -m sentiment_engine ingest-posts --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine build-events --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine train-classifier --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine score-whipsaw --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine backtest --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine dashboard --config configs/research.yaml
+python scripts/run_full_pipeline.py configs/research.yaml
+```
+
+The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, and the kill-switch backtest audit.
+
+## API
+
+The FastAPI service is optional because local research and CI should not require web-server dependencies:
+
+```bash
+pip install -e ".[api]"
+PYTHONPATH=src uvicorn "sentiment_engine.live.service:create_app" --factory
+```
+
+Endpoints include `/health`, `/ready`, `/signal/latest`, `/signal/{event_id}`, `/posts/ingest`, `/simulate/post`, `/metrics`, and `/ws/signals`.
+
 ## Safety Assumptions
 
 - `live_advisory` is the default mode.

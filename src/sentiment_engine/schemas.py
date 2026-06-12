@@ -12,6 +12,17 @@ Direction = Literal["up", "down", "flat"]
 TradeabilityLabel = Literal[
     "tradeable_directional", "volatility_only", "no_trade_whipsaw", "no_impact", "ambiguous"
 ]
+SentimentLabel = Literal[
+    "bullish_market",
+    "bearish_market",
+    "geopolitical_risk",
+    "neutral",
+    "volatility_only",
+    "low_confidence",
+]
+DirectionSignal = Literal["BULLISH", "BEARISH", "NEUTRAL", "NO_TRADE"]
+WhipsawRiskLevel = Literal["NONE", "WATCH", "SOFT_RISK", "HARD_KILL"]
+KillSwitchAction = Literal["ALLOW", "BLOCK_NEW_ENTRIES", "REDUCE_SIZE", "FLATTEN_OPTIONAL", "HARD_FLAT"]
 
 
 class PostRecord(BaseModel):
@@ -113,6 +124,36 @@ class EventTargetRecord(BaseModel):
     tradeability_label: TradeabilityLabel
 
     @field_validator("received_at_utc", "aligned_bar_ts_utc", mode="before")
+    @classmethod
+    def validate_datetime(cls, value: Any) -> datetime:
+        return parse_utc(value)
+
+
+class SignalRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+    post_id: str
+    source_provider: str
+    created_at_utc: datetime
+    received_at_utc: datetime
+    generated_at_utc: datetime
+    text_clean: str
+    sentiment_label: SentimentLabel
+    sentiment_confidence: float
+    topic_labels: list[str]
+    topic_confidence: dict[str, float]
+    tradeability_label: TradeabilityLabel
+    direction_signal: DirectionSignal
+    p_direction: dict[str, float]
+    expected_delta_ticks: dict[str, float]
+    risk: dict[str, Any]
+    kill_switch: dict[str, Any]
+    data_quality: dict[str, Any]
+    model_versions: dict[str, str]
+    explanation: dict[str, Any]
+
+    @field_validator("created_at_utc", "received_at_utc", "generated_at_utc", mode="before")
     @classmethod
     def validate_datetime(cls, value: Any) -> datetime:
         return parse_utc(value)

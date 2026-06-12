@@ -9,6 +9,8 @@ from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market
 from sentiment_engine.ingestion.posts_fixture import audit_posts, load_fixture_posts, posts_to_frame
 from sentiment_engine.models.baselines import build_labeled_events, train_tradeability_baselines
 from sentiment_engine.models.whipsaw import build_whipsaw_report, score_whipsaw_events
+from sentiment_engine.live.dashboard import build_dashboard
+from sentiment_engine.live.signal_engine import latest_signal_from_scores
 from sentiment_engine.research.event_study import build_event_study_report
 from sentiment_engine.research.events import build_event_dataset
 from sentiment_engine.utils.io import write_dataframe, write_json
@@ -26,6 +28,10 @@ def main(argv: list[str] | None = None) -> None:
     subparsers.add_parser("train-classifier")
     subparsers.add_parser("score-whipsaw")
     subparsers.add_parser("backtest")
+    subparsers.add_parser("dashboard")
+    subparsers.add_parser("latest-signal")
+    subparsers.add_parser("run-full")
+    subparsers.add_parser("serve")
     args = parser.parse_args(argv)
     config = load_config(args.config)
     ensure_output_dirs(config)
@@ -45,6 +51,14 @@ def main(argv: list[str] | None = None) -> None:
         _score_whipsaw(config)
     elif args.command == "backtest":
         _backtest(config)
+    elif args.command == "dashboard":
+        _dashboard(config)
+    elif args.command == "latest-signal":
+        _latest_signal(config)
+    elif args.command == "run-full":
+        _run_full(config, args.config)
+    elif args.command == "serve":
+        _serve(args.config)
 
 
 def _ingest_posts(config) -> None:
@@ -130,6 +144,48 @@ def _backtest(config) -> None:
     )
 
 
+def _dashboard(config) -> None:
+    scored = _read_or_build_whipsaw_scores(config)
+    signal = latest_signal_from_scores(scored, config)
+    whipsaw_report = _read_json_report(config.paths.report_dir / "whipsaw_report.json")
+    backtest_report = _read_json_report(config.paths.report_dir / "backtest_report.json")
+    output = build_dashboard(
+        signal=signal,
+        whipsaw_report=whipsaw_report,
+        backtest_report=backtest_report,
+        scored_events=scored,
+        output_path=config.paths.report_dir / "dashboard.html",
+    )
+    print(f"dashboard written to {output}")
+
+
+def _latest_signal(config) -> None:
+    scored = _read_or_build_whipsaw_scores(config)
+    signal = latest_signal_from_scores(scored, config)
+    write_json(config.paths.report_dir / "latest_signal.json", signal.model_dump(mode="json"))
+    print(f"latest signal: {signal.direction_signal} / {signal.kill_switch['action']}")
+
+
+def _run_full(config, config_path: str) -> None:
+    _ingest_posts(config)
+    _ingest_market(config)
+    _build_events(config)
+    _event_study(config)
+    _label_assist(config)
+    _train_classifier(config, config_path)
+    _score_whipsaw(config)
+    _backtest(config)
+    _dashboard(config)
+    print("full pipeline completed")
+
+
+def _serve(config_path: str) -> None:
+    from sentiment_engine.live.service import create_app
+
+    create_app(config_path)
+    print("FastAPI app created. Run with: uvicorn sentiment_engine.live.service:create_app --factory")
+
+
 def _read_or_build_events(config):
     events_path = config.paths.processed_dir / "events.parquet"
     if not Path(events_path).exists():
@@ -155,6 +211,15 @@ def _read_or_build_whipsaw_scores(config):
     import pandas as pd
 
     return pd.read_parquet(scored_path)
+
+
+def _read_json_report(path: Path):
+    if not path.exists():
+        raise FileNotFoundError(f"Missing report {path}; run the upstream command first")
+    import json
+
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 if __name__ == "__main__":
