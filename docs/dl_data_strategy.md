@@ -58,6 +58,22 @@ PYTHONPATH=src python -m sentiment_engine ingest-market-file \
 
 Use this with Databento `GLBX.MDP3` `ohlcv-1m` exports or equivalent broker OHLCV files, then run `build-archive-events`. This still requires licensed market data that covers the archive period.
 
+The label side now has an executable review path:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine export-label-queue \
+  --config configs/research.yaml \
+  --events data/processed/real_events.parquet \
+  --out data/interim/label_queue.csv
+
+PYTHONPATH=src python -m sentiment_engine import-reviewed-labels \
+  --config configs/research.yaml \
+  --input path/to/reviewed_labels.csv \
+  --label-version human_v1
+```
+
+The review queue excludes post-event price-target columns. Reviewed labels are kept in `data/processed/human_labels.parquet`, separate from weak rule labels and market targets.
+
 The repo also writes visible ML/DL smoke reports during the fixture pipeline:
 
 - `reports/classifier_baseline_report.json`

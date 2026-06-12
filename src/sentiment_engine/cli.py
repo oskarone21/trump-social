@@ -13,6 +13,11 @@ from sentiment_engine.ingestion.posts_cnn_archive import (
     load_cnn_archive_posts,
 )
 from sentiment_engine.ingestion.posts_fixture import audit_posts, load_fixture_posts, posts_to_frame
+from sentiment_engine.labels.review import (
+    LABEL_VERSION_DEFAULT,
+    build_label_queue,
+    load_reviewed_labels,
+)
 from sentiment_engine.models.baselines import build_labeled_events, train_tradeability_baselines
 from sentiment_engine.models.tuning import tune_whipsaw_parameters
 from sentiment_engine.models.whipsaw import build_whipsaw_report, score_whipsaw_events
@@ -49,6 +54,14 @@ def main(argv: list[str] | None = None) -> None:
     archive_events_parser.add_argument("--limit-posts", type=int, default=None)
     subparsers.add_parser("event-study")
     subparsers.add_parser("label-assist")
+    label_queue_parser = subparsers.add_parser("export-label-queue")
+    label_queue_parser.add_argument("--events", default=None)
+    label_queue_parser.add_argument("--out", default=None)
+    label_queue_parser.add_argument("--limit", type=int, default=None)
+    reviewed_parser = subparsers.add_parser("import-reviewed-labels")
+    reviewed_parser.add_argument("--input", required=True)
+    reviewed_parser.add_argument("--out", default=None)
+    reviewed_parser.add_argument("--label-version", default=LABEL_VERSION_DEFAULT)
     subparsers.add_parser("train-classifier")
     subparsers.add_parser("score-whipsaw")
     subparsers.add_parser("tune-whipsaw")
@@ -84,6 +97,10 @@ def main(argv: list[str] | None = None) -> None:
         _event_study(config)
     elif args.command == "label-assist":
         _label_assist(config)
+    elif args.command == "export-label-queue":
+        _export_label_queue(config, args.events, args.out, args.limit)
+    elif args.command == "import-reviewed-labels":
+        _import_reviewed_labels(config, args.input, args.out, args.label_version)
     elif args.command == "train-classifier":
         _train_classifier(config, args.config)
     elif args.command == "score-whipsaw":
@@ -220,6 +237,44 @@ def _label_assist(config) -> None:
     print(f"labeled {len(labeled)} events")
 
 
+def _export_label_queue(
+    config, events_path: str | None, output_path: str | None, limit: int | None
+) -> None:
+    import pandas as pd
+
+    source = (
+        Path(events_path) if events_path else config.paths.processed_dir / "labeled_events.parquet"
+    )
+    if not source.exists():
+        _label_assist(config)
+    events = pd.read_parquet(source)
+    queue = build_label_queue(events, limit=limit)
+    target = Path(output_path) if output_path else config.paths.interim_dir / "label_queue.csv"
+    write_dataframe(queue, target)
+    write_json(
+        config.paths.report_dir / "label_queue_audit.json",
+        {
+            "row_count": int(len(queue)),
+            "output_path": str(target),
+            "source_path": str(source),
+            "post_event_target_columns_excluded": True,
+        },
+    )
+    print(f"exported {len(queue)} label-review rows to {target}")
+
+
+def _import_reviewed_labels(
+    config, input_path: str, output_path: str | None, label_version: str
+) -> None:
+    labels, audit = load_reviewed_labels(input_path, label_version=label_version)
+    target = (
+        Path(output_path) if output_path else config.paths.processed_dir / "human_labels.parquet"
+    )
+    write_dataframe(labels, target)
+    write_json(config.paths.report_dir / "human_label_audit.json", audit)
+    print(f"imported {len(labels)} reviewed labels to {target}")
+
+
 def _train_classifier(config, config_path: str) -> None:
     labeled_path = config.paths.processed_dir / "labeled_events.parquet"
     if not Path(labeled_path).exists():
@@ -308,7 +363,10 @@ def _serve(config_path: str) -> None:
     from sentiment_engine.live.service import create_app
 
     create_app(config_path)
-    print("FastAPI app created. Run with: uvicorn sentiment_engine.live.service:create_app --factory")
+    print(
+        "FastAPI app created. Run with: uvicorn "
+        "sentiment_engine.live.service:create_app --factory"
+    )
 
 
 def _read_or_build_events(config):

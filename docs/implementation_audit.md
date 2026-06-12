@@ -29,6 +29,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | CNN archive adapter | Yes | Real post backfill ingestion | `src/sentiment_engine/ingestion/posts_cnn_archive.py` |
 | Market export adapter | Yes | Databento-style or generic OHLCV CSV/parquet normalization | `src/sentiment_engine/ingestion/market_files.py` |
 | Archive event builder | Yes | Processed posts joined to canonical market bars | `src/sentiment_engine/research/archive_events.py` |
+| Human label workflow | Yes | Queue export, reviewed-label validation, audit, agreement metrics | `src/sentiment_engine/labels/review.py` |
 | Transformer / FinBERT / DeBERTa | No | Not implemented | Real labels and larger data required first |
 | LSTM / deep sequence model | No | Not implemented | Not justified for v1 fixtures |
 
@@ -65,7 +66,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-12 passed, 1 warning
+15 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -124,6 +125,22 @@ Latest local command-path verification:
 - `ingest-market-file` loaded 340 canonical fixture bars from CSV.
 - `scripts/run_real_event_build.py` built 8 archive-style events with 0 skipped posts from processed posts and canonical bars.
 - Browser dashboard verification over localhost rendered the title, 10 metrics, and 8 event rows.
+
+## Human Label Workflow
+
+Implemented commands:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-label-queue --limit 5
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-reviewed-labels --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
+```
+
+The queue writes `data/interim/label_queue.csv` and excludes post-event price-target columns. Reviewed labels are validated against the documented schema, versioned, and written to `data/processed/human_labels.parquet`; audit output is written to `reports/human_label_audit.json`.
+
+Latest local command-path verification:
+
+- Label queue export: 5 rows, target columns excluded.
+- Reviewed-label import: 3 sample human labels, 3 unique events, 0 duplicate event/reviewer rows.
 
 ## Classifier Results
 
@@ -376,6 +393,8 @@ Current fixture data passes these checks:
 - 340 of 340 market bars valid.
 - 0 invalid market rows.
 - External market-file audit reports duplicate bar keys, invalid OHLC rows, zero-volume rows, contract symbols, and source names.
+- Label queue audit confirms post-event target columns are excluded from reviewer files.
+- Human-label audit reports versioned label counts, reviewer counts, duplicate event/reviewer rows, and agreement metrics for multi-review events.
 - 0 skipped event-build posts.
 - All internal timestamps are timezone-aware UTC.
 - Post targets align to the first market bar after `received_at_utc`.
@@ -392,7 +411,7 @@ Known limitation:
 - No real Truth Social provider integration has been validated.
 - No real NQ/MNQ licensed historical data has been loaded.
 - Real-market file ingestion is implemented, but no licensed archive-covering market file is present in the repo.
-- No human-labeled dataset exists.
+- Only a small sample human-label fixture exists; no real human-labeled dataset exists.
 - No transformer, FinBERT, DeBERTa, LSTM, or production-grade deep-learning model is trained.
 - LightGBM and PyTorch MLP are fixture smoke baselines only.
 - No statistical significance claim can be made from fixtures.

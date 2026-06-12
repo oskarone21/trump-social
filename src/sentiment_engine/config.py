@@ -77,6 +77,7 @@ class PathConfig(BaseModel):
     market_fixture: Path
     macro_calendar_fixture: Path
     trades_fixture: Path
+    interim_dir: Path
     processed_dir: Path
     report_dir: Path
     model_dir: Path
@@ -128,7 +129,12 @@ def load_config(path: str | Path) -> EngineConfig:
 
 
 def ensure_output_dirs(config: EngineConfig) -> None:
-    for directory in (config.paths.processed_dir, config.paths.report_dir, config.paths.model_dir):
+    for directory in (
+        config.paths.interim_dir,
+        config.paths.processed_dir,
+        config.paths.report_dir,
+        config.paths.model_dir,
+    ):
         directory.mkdir(parents=True, exist_ok=True)
 
 

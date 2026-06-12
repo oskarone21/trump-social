@@ -8,6 +8,7 @@ paths:
   market_fixture: data/fixtures/nq_1m_sample.csv
   macro_calendar_fixture: data/fixtures/macro_calendar.csv
   trades_fixture: data/fixtures/baseline_trades.csv
+  interim_dir: data/interim
   processed_dir: data/processed
   report_dir: reports
   model_dir: models

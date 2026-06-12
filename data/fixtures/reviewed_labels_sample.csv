@@ -1,0 +1,4 @@
+event_id,post_id,human_sentiment_label,human_tradeability_label,human_topic_labels,market_relevance_label,contradiction_label,label_confidence,reviewer_id,reviewed_at_utc,review_notes
+c940540fae91add6,fixture-001,bearish_market,tradeable_directional,trade_policy|china_tariffs,market_relevant,none,0.85,reviewer-a,2026-06-12T12:00:00Z,sample fixture review
+a4ad27cf13db26d5,fixture-002,bullish_market,tradeable_directional,trade_policy|china_tariffs,market_relevant,policy_reversal,0.80,reviewer-a,2026-06-12T12:05:00Z,sample fixture review
+d2fea16f3520bc40,fixture-003,bullish_market,tradeable_directional,fed_monetary|inflation_rates,market_relevant,none,0.82,reviewer-a,2026-06-12T12:10:00Z,sample fixture review

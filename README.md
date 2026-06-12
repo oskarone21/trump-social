@@ -38,6 +38,8 @@ PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/researc
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
 PYTHONPATH=src python -m sentiment_engine build-archive-events --config configs/research.yaml --posts data/processed/cnn_archive_posts.parquet --market data/processed/market_bars.parquet
 PYTHONPATH=src python -m sentiment_engine build-events --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine export-label-queue --config configs/research.yaml --limit 100
+PYTHONPATH=src python -m sentiment_engine import-reviewed-labels --config configs/research.yaml --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
 PYTHONPATH=src python -m sentiment_engine train-classifier --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine score-whipsaw --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine tune-whipsaw --config configs/research.yaml
@@ -71,6 +73,17 @@ python scripts/run_real_event_build.py --market data/processed/market_bars.parqu
 ```
 
 This writes `data/processed/real_events.parquet` and `reports/real_event_build_audit.json`. It is not a research-ready result until the supplied market file covers the archive period, passes coverage/roll/session audits, and labels are reviewed.
+
+## Human Label Workflow
+
+Transformer training is gated on human-reviewed labels. Export a review queue, fill the human label columns, then import the reviewed file:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine export-label-queue --config configs/research.yaml --events data/processed/real_events.parquet --out data/interim/label_queue.csv
+PYTHONPATH=src python -m sentiment_engine import-reviewed-labels --config configs/research.yaml --input path/to/reviewed_labels.csv --label-version human_v1
+```
+
+The queue excludes post-event price-target columns. Reviewed labels are written separately to `data/processed/human_labels.parquet` with `reports/human_label_audit.json`.
 
 ## API
 

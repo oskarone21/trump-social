@@ -20,12 +20,13 @@ Implemented:
 - Static dashboard and optional FastAPI service.
 - External NQ/MNQ market-file adapter for Databento-style or generic 1-minute OHLCV exports.
 - Archive-to-market event builder for processed CNN posts plus canonical market bars.
+- Human label queue export and reviewed-label import/audit workflow.
 
 Not yet implemented:
 
 - Licensed historical NQ/MNQ market-data file has not been supplied at the scale required for research.
 - Full real event dataset cannot be produced until licensed bars covering the archive period are provided.
-- Human-reviewed sentiment/topic/tradeability labels.
+- A large human-reviewed sentiment/topic/tradeability dataset.
 - Production-grade LightGBM walk-forward baseline on real archive + market data.
 - FinBERT, DeBERTa/DistilBERT, sentence-transformer, cross-encoder/NLI, or LSTM models.
 - Statistical interpretation of ML/DL results on real out-of-sample data.
@@ -147,19 +148,19 @@ Acceptance:
 
 ## Phase 4: Labeling System
 
-- [ ] Expand `src/sentiment_engine/labels/label_guidelines.md`.
-- [ ] Build labeling queue for human review.
-- [ ] Add label schema:
-  - [ ] market sentiment
-  - [ ] topics
-  - [ ] tradeability
-  - [ ] contradiction/stance pair labels
-  - [ ] market relevance
-  - [ ] confidence/uncertainty
-- [ ] Add adjudication workflow with reviewer IDs and timestamps.
-- [ ] Track inter-annotator agreement.
+- [x] Expand `src/sentiment_engine/labels/label_guidelines.md`.
+- [x] Build labeling queue for human review.
+- [x] Add label schema:
+  - [x] market sentiment
+  - [x] topics
+  - [x] tradeability
+  - [x] contradiction/stance pair labels
+  - [x] market relevance
+  - [x] confidence/uncertainty
+- [x] Add adjudication workflow with reviewer IDs and timestamps.
+- [x] Track inter-annotator agreement.
 - [ ] Seed at least 500 human-reviewed events before transformer fine-tuning.
-- [ ] Preserve weak labels separately from human labels.
+- [x] Preserve weak labels separately from human labels.
 
 Acceptance:
 
@@ -356,7 +357,7 @@ Acceptance:
 4. Run `ingest-market-file` and `build-archive-events` on that licensed data.
 5. Generate real event targets.
 6. Produce first real event-study report.
-7. Add label-review workflow.
+7. Review at least 500 event rows using `export-label-queue` and `import-reviewed-labels`.
 8. Train LightGBM baseline on real event data.
 9. Add FinBERT inference baseline.
 10. Fine-tune DeBERTa/DistilBERT only after human labels exist.
@@ -367,6 +368,8 @@ Acceptance:
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-archive --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 25
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-market-file --input data/fixtures/nq_1m_sample.csv --source-name fixture_canonical --symbol-root NQ --out data/processed/external_market_bars.parquet
 python scripts/run_real_event_build.py --posts data/processed/posts.parquet --market data/processed/external_market_bars.parquet --out data/processed/real_events.parquet --limit-posts 8
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-label-queue --limit 5
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-reviewed-labels --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
 ```
@@ -377,6 +380,8 @@ Latest known verification:
 - Full archive ingest: 33,899 rows, 33,899 valid, 0 duplicates, 6,392 empty-text rows, 5,830 media-only rows.
 - Market-file ingest path: 340 canonical fixture bars ingested from CSV.
 - Archive event builder path: 8 events, 0 skipped posts using processed posts plus canonical bars.
+- Label queue export: 5 review rows, post-event target columns excluded.
+- Reviewed-label import: 3 sample human labels imported and audited.
 - Full fixture pipeline: completed.
-- Tests: 12 passed.
+- Tests: 15 passed.
 - Browser dashboard check via localhost: title rendered, 10 metrics, 8 event rows.
