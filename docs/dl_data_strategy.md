@@ -6,6 +6,13 @@ Verification date: 2026-06-12.
 
 The implementation now includes a PyTorch TF-IDF MLP smoke baseline so the DL training/reporting path can be executed, plus a FinBERT inference baseline for financial-tone scoring when model weights are available. It still does not fine-tune FinBERT, DeBERTa, LSTM, or other production-grade deep-learning models because the repo only has local fixtures. That remains the right constraint: a transformer trained on eight synthetic rows would be fake progress.
 
+For direct pull feasibility:
+
+- `truthsocial.com` has no stable, documented public API contract for this use case.
+- Use CNN archive/trumpstruth as historical backfill only.
+- Use a permitted provider for live/advisory ingestion via `ingest-provider-posts`.
+- Validate provider endpoints and schema before enabling live flows (`check-provider-freshness` or probe script below).
+
 ## Practical Source Path
 
 The best current route is:
@@ -98,6 +105,14 @@ PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
   --api-key "$YOUR_PROVIDER_KEY" \
   --api-key-header x-api-key \
   --header "Accept: application/json"
+
+Source probe you can run before a pull-path change:
+
+```bash
+PYTHONPATH=src python scripts/run_truthsocial_source_probe.py
+```
+
+It emits `reports/truthsocial_source_probe.json` with endpoint status, latency, headers, and recommended fallback posture.
 ```
 
 The post audit records empty-text and media-only rows. Those rows are valid archive records, but they should not be blindly used for text-only DL training.
