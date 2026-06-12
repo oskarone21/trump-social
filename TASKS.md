@@ -486,3 +486,132 @@ For each objective, this is the exact evidence needed before calling the project
   - [ ] Fail-safe defaults (`BLOCK_NEW_ENTRIES`) validated on source failures.
 
 Only when all rows above are closed should the system be treated as “fully implemented.”
+
+## Comprehensive Outstanding Matrix (end-state requirements)
+
+This matrix preserves the original scope and makes the remaining path explicit in research-grade + quantitative terms. Every item below has a concrete acceptance gate and evidence artifact.
+
+### Data and Feed Layer
+
+- [ ] **Find and lock one production-capable Truth Social ingestion contract**
+  - Evidence expected:
+    - Written contract or signed terms (or equivalent procurement doc) for one source.
+    - Credential loading path in env (`TRUTH_SOCIAL_PROVIDER_API_KEY`, etc.) and no hard-coded secrets.
+    - Reproducible ingestion command stored in `README` + run scripts.
+  - Candidate vendor paths discovered (non-official): Socialcrawl Truth Social endpoint, ScrapeCreators/agent integrations, Apify Truth Social scraper actors (historically available, some deprecated entries in search results).
+- [ ] **Ingest a deterministic historical backfill that spans the analysis window**
+  - Evidence expected:
+    - `reports/*_ingestion_audit.json` with row count/date range/dedup/hash checks.
+    - Re-run on at least two snapshots or a frozen archive file plus frozen hashes.
+- [ ] **Implement explicit provenance and schema-hash logging**
+  - Evidence expected:
+    - raw payload hash persisted with each run.
+    - source snapshot path/URL persisted with timestamp and headers used.
+- [ ] **Add source-license/terms gate before live mode**
+  - Evidence expected:
+    - explicit checklist in config (`allow_live_posts = false` by default) and manual override variable.
+
+- [ ] **Provide a broker-quality backfill path for market data coverage**
+  - Evidence expected:
+    - NQ/MNQ 1-minute bars covering target period in local processed path.
+    - Market audit report with coverage, roll/holiday/session diagnostics.
+
+### Event Engineering
+
+- [ ] **Join policy with no leakage**
+  - Evidence expected:
+    - Event feature definitions that explicitly use only pre-post information at feature time.
+    - A no-leakage test proving target fields are not in feature output.
+- [ ] **Produce post-event target set on real data**
+  - Evidence expected:
+    - `data/processed/real_events.parquet` built from real posts + real bars.
+    - `reports/real_event_build_audit.json` with skipped/invalid rows and reason codes.
+- [ ] **Add matched-control blocks and regime stratification**
+  - Evidence expected:
+    - By-day-of-week, session bucket, and volatility regime matched sets.
+    - Placebo windows baseline.
+
+### ML/DL and Interpretation
+
+- [ ] **Train and compare non-DL baselines on real split**
+  - Evidence expected:
+    - reports for Naive/rules/TF-IDF logistic/SVM on temporal holdout folds.
+    - utility-weighted false-positive/false-negative analysis.
+- [ ] **Train and compare LightGBM and DL model on reviewed labels**
+  - Evidence expected:
+    - LightGBM report + confidence-calibrated DL report.
+    - Purged walk-forward config with fold-level diagnostics.
+- [ ] **Add probability calibration and abstention policy**
+  - Evidence expected:
+    - calibration/reliability curves.
+    - selected operating threshold with expected-cost justification.
+- [ ] **Add one sentence-embedding / NLI-based contradiction layer**
+  - Evidence expected:
+    - comparison of cosine-text-only vs contradiction-aware model on validation folds.
+    - lift in `TEXT_CONTRADICTION` precision/recall.
+
+### Research and Economics (Core Quant Gates)
+
+- [ ] **Run full economic interpretation on real data**
+  - Evidence expected:
+    - pre/post kill-switch PnL, drawdown, MAE/MFE, realized slippage/commission sensitivity.
+    - false-positive and false-negative dollar-cost attribution.
+- [ ] **Bootstrap uncertainty + sample-size gates**
+  - Evidence expected:
+    - resampled confidence interval report for key metrics.
+    - minimum post counts per fold enforced (no fold below power threshold).
+- [ ] **Finalize final comparison report**
+  - Evidence expected:
+    - `reports/research_interpretation.json` + markdown with explicit "deploy" recommendation and reasons.
+
+### Live/Operations
+
+- [ ] **Implement provider failover and staleness hardening**
+  - Evidence expected:
+    - if primary fails: failover path exercised and logged.
+    - stale detection mapping to `BLOCK_NEW_ENTRIES`.
+- [ ] **Add operational health dashboard sections**
+  - Evidence expected:
+    - `data coverage`, `archive freshness`, `provider health`, `model load status` visible.
+- [ ] **Shadow-mode evidence before any blocking mode**
+    - Evidence expected:
+      - at least one `run_shadow_report` window with manual reviewer signoff.
+
+## Practical Data-Ingestion Playbook (what to run now)
+
+Use only these ingestion paths for now because no official public Truth Social API is assumed:
+
+```bash
+# Historical/archive backfill
+PYTHONPATH=src python -m sentiment_engine ingest-archive \
+  --config configs/research.yaml \
+  --url https://ix.cnn.io/data/truth-social/truth_archive.parquet \
+  --limit 25
+
+# Secondary archive (RSS mirror)
+PYTHONPATH=src python -m sentiment_engine ingest-trumpstruth-feed \
+  --config configs/research.yaml \
+  --url https://www.trumpstruth.org/feed \
+  --start-date 2026-01-01
+
+# Provider API feed (requires contract/API key and allowed use)
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
+  --config configs/research.yaml \
+  --source "https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump" \
+  --provider-name socialcrawl_truthsocial \
+  --source-name socialcrawl_truthsocial_posts \
+  --api-key "$SOCIALCRAWL_API_KEY" \
+  --api-key-header x-api-key \
+  --provider-limit 500
+```
+
+You can keep this command-path intact without code changes by adding provider output fixtures or run with local dump paths when keys are not available.
+
+## Required End-to-End Script Evidence (per phase)
+
+- `python scripts/run_full_pipeline.py configs/research.yaml` must finish with:
+  - events built, model reports created, whipsaw tuning/backtest run, interpretation + dashboard written.
+- `python scripts/run_model_training.py`, `python scripts/run_walk_forward.py`, `python scripts/run_shadow_report.py` must complete.
+- Optional DL interpretation run:
+  - `PYTHONPATH=src python scripts/run_finbert_inference.py --config configs/research.yaml --limit 8`
+  - if model cache/network is unavailable, use cached/offline mode or precomputed report.
