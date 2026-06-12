@@ -323,6 +323,7 @@ Acceptance:
 - [x] Static dashboard for fixture verification.
 - [x] Add fixture model comparison table.
 - [x] Add readiness gate table.
+- [x] Add FinBERT inference summary to interpretation and dashboard when the report exists.
 - [ ] Add real-data dashboard sections:
   - [ ] data coverage
   - [ ] archive freshness
@@ -407,6 +408,7 @@ Latest known verification:
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - FinBERT inference path: unit tested with deterministic classifier and verified with
   `ProsusAI/finbert` on 2 fixture rows.
+- Dashboard: FinBERT inference summary visible when `reports/finbert_inference_report.json` exists.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
 - Tests: 33 passed.

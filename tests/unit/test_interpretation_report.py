@@ -17,6 +17,15 @@ def test_interpretation_report_marks_fixture_results_not_research_ready() -> Non
             },
             "archive": {"row_count": 33899},
             "market": {"row_count": 340, "valid_rows": 340, "source_names": ["fixture_csv"]},
+            "finbert": {
+                "status": "scored",
+                "model_name": "ProsusAI/finbert",
+                "mode": "inference_only",
+                "event_rows": 2,
+                "scored_rows": 2,
+                "label_counts": {"positive": 2},
+                "mean_scores": {"positive": 0.7, "negative": 0.1, "neutral": 0.2},
+            },
             "human_labels": {"row_count": 3, "unique_event_count": 3},
             "backtest": {"trade_count": 4, "kill_switch_value_usd": 54.42},
         }
@@ -28,12 +37,16 @@ def test_interpretation_report_marks_fixture_results_not_research_ready() -> Non
     assert payload["readiness_gates"]["human_label_minimum_met"] is False
     assert payload["best_fixture_model"]["model"] == "TF-IDF logistic regression"
     assert payload["best_fixture_model"]["negative_log_loss"] == 1.0
+    assert payload["finbert_summary"]["status"] == "scored"
+    assert payload["finbert_summary"]["label_counts"] == {"positive": 2}
+    assert any("FinBERT inference is available" in item for item in payload["interpretation"])
 
 
 def test_interpretation_markdown_contains_model_and_gate_tables() -> None:
     payload = build_interpretation_report(
         {
             "classifier": {"test_rows": 3, "tfidf_logreg": _metric(0.5, 0.5)},
+            "finbert": {"status": "scored", "model_name": "ProsusAI/finbert", "scored_rows": 2},
             "market": {"source_names": ["fixture_csv"]},
             "human_labels": {"row_count": 0},
         }
@@ -43,6 +56,8 @@ def test_interpretation_markdown_contains_model_and_gate_tables() -> None:
 
     assert "| Model | Type | Status | Accuracy | Macro F1 | Log Loss | ECE |" in markdown
     assert "| licensed_market_data_loaded | False |" in markdown
+    assert "## FinBERT Inference" in markdown
+    assert "`ProsusAI/finbert`" in markdown
     assert "FinBERT/DeBERTa fine-tuning is not methodologically ready." in markdown
 
 

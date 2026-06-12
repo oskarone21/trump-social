@@ -149,7 +149,8 @@ Latest local command-path verification:
 
 - `ingest-market-file` loaded 340 canonical fixture bars from CSV.
 - `scripts/run_real_event_build.py` built 8 archive-style events with 0 skipped posts from processed posts and canonical bars.
-- Browser dashboard verification over localhost rendered the title, 10 metrics, and 8 event rows.
+- Browser dashboard verification over localhost rendered the title, model comparison,
+  FinBERT inference summary, 10 metrics, and 8 event rows.
 
 ## Human Label Workflow
 
@@ -248,6 +249,8 @@ Result:
 - Mean positive/negative/neutral scores: `0.763602 / 0.018655 / 0.217743`
 
 This verifies transformer model loading, tokenization, scoring, and report generation. It is not fine-tuning and it is not evidence that FinBERT predicts NQ/MNQ outcomes.
+
+The interpretation report and static dashboard now render this FinBERT report when present. The dashboard labels it as inference-only and keeps it separate from trained tradeability model metrics.
 
 ## Whipsaw Results
 

@@ -17,6 +17,7 @@ def build_interpretation_report(reports: dict[str, dict[str, Any] | None]) -> di
     return {
         "status": "real_research_ready" if all(gates.values()) else "not_research_ready",
         "model_comparison": model_rows,
+        "finbert_summary": _finbert_summary(reports.get("finbert")),
         "best_fixture_model": _best_model(model_rows),
         "data_quality": _data_quality(reports),
         "whipsaw_summary": _whipsaw_summary(reports.get("whipsaw")),
@@ -59,6 +60,21 @@ def render_interpretation_markdown(payload: dict[str, Any]) -> str:
             f"| {row['model']} | {row['model_type']} | {row['status']} | "
             f"{_fmt(row.get('accuracy'))} | {_fmt(row.get('macro_f1'))} | "
             f"{_fmt(row.get('negative_log_loss'))} | {_fmt(row.get('ece'))} |"
+        )
+    finbert = payload.get("finbert_summary") or {}
+    if finbert:
+        lines.extend(
+            [
+                "",
+                "## FinBERT Inference",
+                "",
+                f"- `status`: `{finbert.get('status')}`",
+                f"- `model_name`: `{finbert.get('model_name')}`",
+                f"- `mode`: `{finbert.get('mode')}`",
+                f"- `scored_rows`: `{finbert.get('scored_rows')}`",
+                f"- `label_counts`: `{finbert.get('label_counts')}`",
+                f"- `mean_scores`: `{finbert.get('mean_scores')}`",
+            ]
         )
     lines.extend(
         [
@@ -171,6 +187,25 @@ def _backtest_summary(report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _finbert_summary(report: dict[str, Any] | None) -> dict[str, Any]:
+    if not report:
+        return {}
+    return {
+        "status": report.get("status"),
+        "model_name": report.get("model_name"),
+        "mode": report.get("mode"),
+        "event_rows": report.get("event_rows"),
+        "scored_rows": report.get("scored_rows", 0),
+        "skipped_empty_text_rows": report.get("skipped_empty_text_rows", 0),
+        "label_counts": report.get("label_counts", {}),
+        "mean_scores": report.get("mean_scores", {}),
+        "methodology_note": (
+            "FinBERT is reported as inference-only financial tone; it is not calibrated "
+            "tradeability training."
+        ),
+    }
+
+
 def _readiness_gates(reports: dict[str, dict[str, Any] | None]) -> dict[str, bool]:
     archive = reports.get("archive") or {}
     market = reports.get("market") or {}
@@ -210,6 +245,12 @@ def _interpretation(
         )
     if not gates["transformer_training_ready"]:
         notes.append("FinBERT/DeBERTa fine-tuning is not methodologically ready.")
+    finbert = reports.get("finbert") or {}
+    if finbert.get("status") == "scored":
+        notes.append(
+            "FinBERT inference is available for financial-tone diagnostics, but it is not "
+            "a calibrated tradeability model."
+        )
     notes.append(
         "Fixture backtest PnL changes are accounting checks only and must not be treated as edge."
     )

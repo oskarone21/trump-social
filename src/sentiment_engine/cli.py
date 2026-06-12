@@ -475,6 +475,9 @@ def _interpret_results(config) -> None:
         ),
         "whipsaw": _read_optional_json_report(config.paths.report_dir / "whipsaw_report.json"),
         "backtest": _read_optional_json_report(config.paths.report_dir / "backtest_report.json"),
+        "finbert": _read_optional_json_report(
+            config.paths.report_dir / "finbert_inference_report.json"
+        ),
         "human_labels": _read_optional_json_report(
             config.paths.report_dir / "human_label_audit.json"
         ),

@@ -30,6 +30,14 @@ def test_dashboard_renders_model_comparison_when_interpretation_is_available(tmp
                     "ece": 0.25,
                 }
             ],
+            "finbert_summary": {
+                "status": "scored",
+                "model_name": "ProsusAI/finbert",
+                "mode": "inference_only",
+                "scored_rows": 2,
+                "label_counts": {"positive": 2},
+                "mean_scores": {"positive": 0.7, "negative": 0.1, "neutral": 0.2},
+            },
             "readiness_gates": {"licensed_market_data_loaded": False},
         },
         scored_events=pd.DataFrame(
@@ -51,6 +59,8 @@ def test_dashboard_renders_model_comparison_when_interpretation_is_available(tmp
     assert "TF-IDF logistic regression" in html
     assert "Log Loss" in html
     assert "ECE" in html
+    assert "FinBERT Inference" in html
+    assert "ProsusAI/finbert" in html
     assert "licensed_market_data_loaded" in html
 
 

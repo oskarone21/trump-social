@@ -131,6 +131,7 @@ def _interpretation_section(report: dict[str, Any] | None) -> str:
     if not report:
         return ""
     model_rows = "\n".join(_model_row(row) for row in report.get("model_comparison", []))
+    finbert_html = _finbert_section(report.get("finbert_summary", {}))
     gate_rows = "\n".join(
         f"<tr><td>{html.escape(str(gate))}</td><td>{html.escape(str(passed))}</td></tr>"
         for gate, passed in report.get("readiness_gates", {}).items()
@@ -146,10 +147,37 @@ def _interpretation_section(report: dict[str, Any] | None) -> str:
         {model_rows}
       </tbody>
     </table>
+    {finbert_html}
     <h2>Readiness Gates</h2>
     <table>
       <thead><tr><th>Gate</th><th>Passed</th></tr></thead>
       <tbody>{gate_rows}</tbody>
+    </table>
+    """
+
+
+def _finbert_section(summary: dict[str, Any]) -> str:
+    if not summary:
+        return ""
+    label_counts = summary.get("label_counts", {})
+    mean_scores = summary.get("mean_scores", {})
+    return f"""
+    <h2>FinBERT Inference</h2>
+    <table>
+      <thead>
+        <tr><th>Model</th><th>Status</th><th>Mode</th><th>Scored Rows</th>
+          <th>Label Counts</th><th>Mean Scores</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{html.escape(str(summary.get("model_name", "")))}</td>
+          <td>{html.escape(str(summary.get("status", "")))}</td>
+          <td>{html.escape(str(summary.get("mode", "")))}</td>
+          <td>{html.escape(str(summary.get("scored_rows", "")))}</td>
+          <td>{html.escape(str(label_counts))}</td>
+          <td>{html.escape(str(mean_scores))}</td>
+        </tr>
+      </tbody>
     </table>
     """
 
