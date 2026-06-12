@@ -345,7 +345,7 @@ Acceptance:
 ## Phase 11: Scripts and CI
 
 - [x] `scripts/run_full_pipeline.py` for fixture path.
-- [ ] `scripts/run_archive_backfill.py`.
+- [x] `scripts/run_archive_backfill.py`.
 - [x] `scripts/run_real_event_build.py`.
 - [x] `scripts/run_model_training.py`.
 - [ ] `scripts/run_walk_forward.py`.
@@ -381,6 +381,7 @@ Acceptance:
 ```bash
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-archive --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 25
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml check-archive-freshness --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
+python scripts/run_archive_backfill.py --config configs/research.yaml --limit 25
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-market-file --input data/fixtures/nq_1m_sample.csv --source-name fixture_canonical --symbol-root NQ --out data/processed/external_market_bars.parquet
 python scripts/run_real_event_build.py --posts data/processed/posts.parquet --market data/processed/external_market_bars.parquet --out data/processed/real_events.parquet --limit-posts 8
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-label-queue --limit 5
@@ -396,6 +397,7 @@ Latest known verification:
 - Archive smoke ingest: 25 rows, 25 valid, 0 duplicates, 4 empty-text/media-only.
 - Full archive ingest: 33,899 rows, 33,899 valid, 0 duplicates, 6,392 empty-text rows, 5,830 media-only rows.
 - Archive freshness check: remote HTTP OK, local archive dedupe/text-quality/max-timestamp audit written.
+- Archive backfill script: local fixture path verified with 3 rows and remote freshness skipped.
 - Market-file ingest path: 340 canonical fixture bars ingested from CSV.
 - Archive event builder path: 8 events, 0 skipped posts using processed posts plus canonical bars.
 - Label queue export: 5 review rows, post-event target columns excluded.
@@ -403,5 +405,5 @@ Latest known verification:
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
-- Tests: 29 passed.
+- Tests: 31 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

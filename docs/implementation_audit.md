@@ -70,7 +70,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-29 passed, 1 warning
+31 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test

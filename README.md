@@ -49,6 +49,7 @@ PYTHONPATH=src python -m sentiment_engine backtest --config configs/research.yam
 PYTHONPATH=src python -m sentiment_engine interpret-results --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine dashboard --config configs/research.yaml
 python scripts/run_model_training.py configs/research.yaml
+python scripts/run_archive_backfill.py --config configs/research.yaml
 python scripts/run_full_pipeline.py configs/research.yaml
 ```
 
@@ -71,7 +72,7 @@ For the complete outstanding implementation plan, see [TASKS.md](TASKS.md).
 The post side is implemented through the CNN archive adapter. The market side expects a licensed NQ/MNQ 1-minute OHLCV CSV/parquet export, preferably Databento `GLBX.MDP3` `ohlcv-1m` or an equivalent broker export:
 
 ```bash
-PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
+python scripts/run_archive_backfill.py --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
 python scripts/run_real_event_build.py --market data/processed/market_bars.parquet
 ```
