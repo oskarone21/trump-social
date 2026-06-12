@@ -32,6 +32,7 @@ PYTHONPATH=src python -m sentiment_engine run-full --config configs/research.yam
 
 ```bash
 PYTHONPATH=src python -m sentiment_engine ingest-posts --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 100
 PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine build-events --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine train-classifier --config configs/research.yaml
@@ -45,6 +46,8 @@ python scripts/run_full_pipeline.py configs/research.yaml
 The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, and the kill-switch backtest audit.
 
 For a plain-English status of implemented models, results, metrics, tuned parameters, Optuna, and data-cleanliness checks, see [docs/implementation_audit.md](docs/implementation_audit.md).
+
+For the source and deep-learning readiness path, see [docs/dl_data_strategy.md](docs/dl_data_strategy.md).
 
 ## API
 

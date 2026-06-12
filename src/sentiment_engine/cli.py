@@ -6,6 +6,11 @@ from pathlib import Path
 from sentiment_engine.config import ensure_output_dirs, load_config
 from sentiment_engine.backtest.simulator import run_kill_switch_backtest
 from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market_csv
+from sentiment_engine.ingestion.posts_cnn_archive import (
+    archive_posts_to_frame,
+    audit_cnn_archive_posts,
+    load_cnn_archive_posts,
+)
 from sentiment_engine.ingestion.posts_fixture import audit_posts, load_fixture_posts, posts_to_frame
 from sentiment_engine.models.baselines import build_labeled_events, train_tradeability_baselines
 from sentiment_engine.models.tuning import tune_whipsaw_parameters
@@ -22,6 +27,10 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", default="configs/research.yaml")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("ingest-posts")
+    archive_parser = subparsers.add_parser("ingest-archive")
+    archive_parser.add_argument("--url", default=None)
+    archive_parser.add_argument("--limit", type=int, default=None)
+    archive_parser.add_argument("--out", default=None)
     subparsers.add_parser("ingest-market")
     subparsers.add_parser("build-events")
     subparsers.add_parser("event-study")
@@ -39,6 +48,8 @@ def main(argv: list[str] | None = None) -> None:
     ensure_output_dirs(config)
     if args.command == "ingest-posts":
         _ingest_posts(config)
+    elif args.command == "ingest-archive":
+        _ingest_archive(config, args.url, args.limit, args.out)
     elif args.command == "ingest-market":
         _ingest_market(config)
     elif args.command == "build-events":
@@ -71,6 +82,18 @@ def _ingest_posts(config) -> None:
     write_dataframe(frame, config.paths.processed_dir / "posts.parquet")
     write_json(config.paths.report_dir / "post_ingestion_audit.json", audit_posts(posts))
     print(f"ingested {len(posts)} posts")
+
+
+def _ingest_archive(config, url: str | None, limit: int | None, out: str | None) -> None:
+    archive_url = url or config.sources["posts"]["stiles_archive"]["latest_archive_url"]
+    posts = load_cnn_archive_posts(archive_url, limit=limit)
+    output_path = Path(out) if out else config.paths.processed_dir / "cnn_archive_posts.parquet"
+    write_dataframe(archive_posts_to_frame(posts), output_path)
+    write_json(
+        config.paths.report_dir / "cnn_archive_ingestion_audit.json",
+        audit_cnn_archive_posts(posts, source=archive_url),
+    )
+    print(f"ingested {len(posts)} archive posts from {archive_url}")
 
 
 def _ingest_market(config) -> None:

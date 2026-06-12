@@ -19,7 +19,14 @@ TRUMP_AUTHOR_ID = "realDonaldTrump"
 
 
 def load_fixture_posts(path: str | Path) -> list[PostRecord]:
-    records = [_normalise_stiles_record(item) for item in read_json_records(path)]
+    records = [
+        normalise_stiles_record(
+            item,
+            source_name="fixture_stiles_archive",
+            source_provider=POST_FIXTURE_PROVIDER,
+        )
+        for item in read_json_records(path)
+    ]
     deduped = _dedupe_posts(records)
     return sorted(deduped, key=lambda record: (record.created_at_utc, record.post_id))
 
@@ -32,10 +39,15 @@ def audit_posts(records: list[PostRecord]) -> dict[str, Any]:
     if not records:
         return {"row_count": 0, "valid_rows": 0, "duplicate_post_ids": 0, "min_created_at_utc": None}
     post_ids = [record.post_id for record in records]
+    empty_text_rows = sum(1 for record in records if not record.text_clean)
     return {
         "row_count": len(records),
         "valid_rows": len(records),
         "duplicate_post_ids": len(post_ids) - len(set(post_ids)),
+        "empty_text_rows": empty_text_rows,
+        "media_only_rows": sum(
+            1 for record in records if not record.text_clean and (record.has_image or record.has_video)
+        ),
         "min_created_at_utc": isoformat_z(min(record.created_at_utc for record in records)),
         "max_created_at_utc": isoformat_z(max(record.created_at_utc for record in records)),
         "max_feed_lag_ms": max(
@@ -45,17 +57,22 @@ def audit_posts(records: list[PostRecord]) -> dict[str, Any]:
     }
 
 
-def _normalise_stiles_record(item: dict[str, Any]) -> PostRecord:
+def normalise_stiles_record(
+    item: dict[str, Any],
+    *,
+    source_name: str,
+    source_provider: str,
+) -> PostRecord:
     created_at = parse_utc(item["created_at"])
     received_at = parse_utc(item.get("received_at", created_at))
     text_raw = str(item.get("content", ""))
     text_clean = clean_post_text(text_raw)
-    media_urls = [str(url) for url in item.get("media", [])]
+    media_urls = _list_value(item.get("media", []))
     content_hash = stable_hash("|".join([str(item["id"]), text_clean, *media_urls]))
-    urls = sorted(set(extract_urls(text_raw) + [str(item.get("url", ""))]))
+    urls = sorted(set(extract_urls(text_raw) + _list_value(item.get("url", ""))))
     return PostRecord(
-        source_name="fixture_stiles_archive",
-        source_provider=POST_FIXTURE_PROVIDER,
+        source_name=source_name,
+        source_provider=source_provider,
         post_id=str(item["id"]),
         author_id=TRUMP_AUTHOR_ID,
         created_at_utc=created_at,
@@ -89,3 +106,15 @@ def _dedupe_posts(records: list[PostRecord]) -> list[PostRecord]:
         if existing is None or record.ingested_at_utc >= existing.ingested_at_utc:
             by_key[key] = record
     return list(by_key.values())
+
+
+def _list_value(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value if item]
+    if hasattr(value, "tolist"):
+        return [str(item) for item in value.tolist() if item]
+    if isinstance(value, str):
+        return [value] if value else []
+    return [str(value)]

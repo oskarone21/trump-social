@@ -12,6 +12,7 @@ This audit answers what is actually implemented in the current repo. It is based
 - It does implement one ML baseline: TF-IDF features plus logistic regression.
 - It implements rule-based sentiment/topic labels, deterministic event targets, weighted whipsaw scoring, Optuna tuning reports, a kill-switch backtest, a signal JSON contract, an optional FastAPI service, and a static dashboard.
 - All current results are from 8 fixture posts, 340 fixture NQ one-minute bars, and 4 fixture baseline trades.
+- It can now ingest the CNN-hosted Trump Truth Social archive for historical/backfill posts via `ingest-archive`.
 
 ## Implemented Models
 
@@ -23,6 +24,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | Whipsaw detector | Yes | Weighted transparent scoring model | `src/sentiment_engine/models/whipsaw.py` |
 | Timing model | Yes | Empirical hazard/count features | `src/sentiment_engine/models/timing.py` |
 | Optuna tuning | Yes | TPE optimization of whipsaw weights/thresholds | `src/sentiment_engine/models/tuning.py` |
+| CNN archive adapter | Yes | Real post backfill ingestion | `src/sentiment_engine/ingestion/posts_cnn_archive.py` |
 | Transformer / FinBERT / DeBERTa | No | Not implemented | Real labels and larger data required first |
 | LSTM / deep sequence model | No | Not implemented | Not justified for v1 fixtures |
 | LightGBM | No | Not implemented | Deferred until real feature volume exists |
@@ -60,8 +62,27 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-8 passed
+9 passed
 ```
+
+## Real Archive Smoke Test
+
+Command:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-archive --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 25
+```
+
+Result:
+
+- 25 archive posts ingested.
+- 25 valid rows.
+- 0 duplicate post IDs.
+- 4 empty-text rows.
+- 4 media-only rows.
+- Date range in smoke sample: `2026-06-10T13:19:46.612000Z` to `2026-06-12T13:59:27.160000Z`.
+
+This proves the current archive schema can be normalized by the repo. It does not prove market-label quality or live-trading suitability.
 
 ## Classifier Results
 
@@ -306,6 +327,7 @@ Current fixture data passes these checks:
 - All internal timestamps are timezone-aware UTC.
 - Post targets align to the first market bar after `received_at_utc`.
 - Keyword matching uses word boundaries for single-token keywords, which prevents false matches like `ai` inside `again`.
+- Real archive smoke ingest also records empty-text/media-only counts, which must be excluded or separately handled for text-only DL training.
 
 Known limitation:
 
