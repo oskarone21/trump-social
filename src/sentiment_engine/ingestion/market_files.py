@@ -24,18 +24,36 @@ def load_market_file(
     continuous_symbol: str | None = None,
 ) -> pd.DataFrame:
     raw = _read_market_file(path)
+    return normalise_market_frame(
+        raw,
+        source_name=source_name,
+        symbol_root=symbol_root,
+        contract_symbol=contract_symbol,
+        continuous_symbol=continuous_symbol,
+    )
+
+
+def normalise_market_frame(
+    frame: pd.DataFrame,
+    *,
+    source_name: str,
+    symbol_root: str,
+    contract_symbol: str | None = None,
+    continuous_symbol: str | None = None,
+) -> pd.DataFrame:
+    raw = _with_timestamp_column(frame)
     if _is_canonical(raw):
-        frame = _canonical_frame(raw)
+        canonical = _canonical_frame(raw)
     else:
-        frame = _normalise_ohlcv(
+        canonical = _normalise_ohlcv(
             raw,
             source_name=source_name,
             symbol_root=symbol_root,
             contract_symbol=contract_symbol,
             continuous_symbol=continuous_symbol,
         )
-    _validate_rows(frame)
-    return frame.sort_values(["ts_open_utc", "contract_symbol"]).drop_duplicates(
+    _validate_rows(canonical)
+    return canonical.sort_values(["ts_open_utc", "contract_symbol"]).drop_duplicates(
         ["ts_open_utc", "contract_symbol"], keep="last"
     )
 
@@ -54,6 +72,14 @@ def _read_market_file(path: str | Path) -> pd.DataFrame:
 
 def _is_canonical(frame: pd.DataFrame) -> bool:
     return all(column in frame.columns for column in MARKET_REQUIRED_COLUMNS)
+
+
+def _with_timestamp_column(frame: pd.DataFrame) -> pd.DataFrame:
+    if _first_present(frame, TIMESTAMP_ALIASES) is not None:
+        return frame
+    if frame.index.name in TIMESTAMP_ALIASES:
+        return frame.reset_index()
+    return frame
 
 
 def _canonical_frame(frame: pd.DataFrame) -> pd.DataFrame:

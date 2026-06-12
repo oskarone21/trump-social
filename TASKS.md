@@ -100,6 +100,7 @@ Acceptance:
 - [x] Select primary provider path: Databento `GLBX.MDP3` or equivalent broker export.
 - [ ] Document license and permitted research/live use.
 - [x] Implement local export adapter in `src/sentiment_engine/ingestion/market_files.py`.
+- [x] Implement optional Databento Historical API downloader gated by `DATABENTO_API_KEY`.
 - [x] Support NQ and MNQ 1-minute OHLCV first.
 - [ ] Add optional tick/order-book support for spread, slippage, and latency research.
 - [ ] Implement active-contract selection and continuous-contract mapping.

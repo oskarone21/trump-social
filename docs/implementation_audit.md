@@ -29,6 +29,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | CNN archive adapter | Yes | Real post backfill ingestion | `src/sentiment_engine/ingestion/posts_cnn_archive.py` |
 | CNN archive freshness monitor | Yes | Remote header and local dedupe/freshness audit | `src/sentiment_engine/ingestion/archive_monitor.py` |
 | Market export adapter | Yes | Databento-style or generic OHLCV CSV/parquet normalization | `src/sentiment_engine/ingestion/market_files.py` |
+| Databento API downloader | Yes | Licensed Historical API pull into canonical market bars | `src/sentiment_engine/ingestion/databento_provider.py` |
 | Archive event builder | Yes | Processed posts joined to canonical market bars | `src/sentiment_engine/research/archive_events.py` |
 | Human label workflow | Yes | Queue export, reviewed-label validation, audit, agreement metrics | `src/sentiment_engine/labels/review.py` |
 | Result interpretation | Yes | Model comparison, readiness gates, Markdown/JSON reports | `src/sentiment_engine/research/interpretation.py` |
@@ -68,7 +69,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-22 passed, 1 warning
+27 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -131,6 +132,16 @@ PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml build-a
 The market adapter supports canonical bars, Databento-style `ts_event` OHLCV exports, and generic timestamp/open/high/low/close/volume files. It writes canonical `MarketBar` rows and a market-ingestion audit with valid rows, invalid rows, duplicate bar keys, invalid OHLC rows, zero-volume rows, contracts, and source names.
 
 This is an executable ingestion and event-construction path. It still requires a user-supplied licensed market file covering the Truth Social archive period before real ML/DL claims can be made.
+
+Databento Historical API access is also implemented:
+
+```bash
+pip install -e ".[market]"
+export DATABENTO_API_KEY="..."
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml download-databento-market --start 2022-02-14T00:00:00Z --end 2026-06-12T23:59:59Z --symbols NQ.c.0 --symbol-root NQ
+```
+
+The downloader calls `timeseries.get_range`, converts the returned `DBNStore` through `to_df()`, normalizes to canonical `MarketBar` rows, writes `reports/databento_download_audit.json`, and never records the API key in the audit. This path is verified with a fake Databento client in unit tests; a live download still requires valid licensed credentials and should not be committed to git.
 
 Latest local command-path verification:
 

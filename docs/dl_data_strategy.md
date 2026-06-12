@@ -46,7 +46,7 @@ The post audit records empty-text and media-only rows. Those rows are valid arch
 
 Full archive verification on 2026-06-12 ingested 33,899 valid rows with 0 duplicate post IDs. The audit found 6,392 empty-text rows and 5,830 media-only rows, so the training dataset must filter text-empty rows or route them through separate media/link features.
 
-The market-data side now has an executable CSV/parquet export path:
+The market-data side now has executable CSV/parquet export and Databento API paths:
 
 ```bash
 PYTHONPATH=src python -m sentiment_engine ingest-market-file \
@@ -56,7 +56,18 @@ PYTHONPATH=src python -m sentiment_engine ingest-market-file \
   --symbol-root NQ
 ```
 
-Use this with Databento `GLBX.MDP3` `ohlcv-1m` exports or equivalent broker OHLCV files, then run `build-archive-events`. This still requires licensed market data that covers the archive period.
+```bash
+pip install -e ".[market]"
+export DATABENTO_API_KEY="..."
+PYTHONPATH=src python -m sentiment_engine download-databento-market \
+  --config configs/research.yaml \
+  --start 2022-02-14T00:00:00Z \
+  --end 2026-06-12T23:59:59Z \
+  --symbols NQ.c.0 \
+  --symbol-root NQ
+```
+
+Use this with Databento `GLBX.MDP3` `ohlcv-1m` exports/API access or equivalent broker OHLCV files, then run `build-archive-events`. This still requires licensed market data that covers the archive period.
 
 The label side now has an executable review path:
 

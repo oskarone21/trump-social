@@ -21,7 +21,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 | Source | Verified status | Use in this repo |
 |---|---|---|
 | CME product specifications | CME lists NQ as `$20 x Nasdaq-100 index` with a `0.25` index-point minimum tick. CME lists MNQ as `$2 x Nasdaq-100 index` with a `0.25` index-point minimum tick. | Instrument config validation: NQ tick value is `$5`, MNQ tick value is `$0.50`. |
-| Databento `GLBX.MDP3` exported OHLCV | Databento documents `GLBX.MDP3` as CME Globex MDP 3.0 futures/options coverage and documents OHLCV aggregate bars at 1-minute intervals with `ts_event` as the bar start timestamp. | Implemented via `ingest-market-file` for CSV/parquet exports. Requires user-supplied licensed data. |
+| Databento `GLBX.MDP3` exported or API OHLCV | Databento documents `GLBX.MDP3` as CME Globex MDP 3.0 futures/options coverage and documents OHLCV aggregate bars at 1-minute intervals with `ts_event` as the bar start timestamp. The Historical API exposes `timeseries.get_range`, and `DBNStore.to_df()` returns a pandas DataFrame. | Implemented via `ingest-market-file` for CSV/parquet exports and `download-databento-market` for licensed API access. Requires `DATABENTO_API_KEY` and permitted-use review. |
 | Broker/exported OHLCV | Required fallback for serious NQ/MNQ research if Databento is not used. Licensing, continuous-contract logic, session handling, roll policy, and timestamp quality must be checked per source. | Supported when the file has generic timestamp/open/high/low/close/volume columns. API adapters later. |
 | Economic calendar CSV | Needed to reduce false attribution around CPI, FOMC, NFP, Fed speakers, auctions, and earnings windows. | Local CSV fixture/import first. |
 
@@ -30,6 +30,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 - All timestamps must be timezone-aware UTC after ingestion.
 - Post target alignment uses the first market bar opening at or after `received_at_utc`.
 - External market files are normalized to canonical `MarketBar` rows before event construction.
+- Databento API downloads are normalized to canonical `MarketBar` rows and audited before event construction.
 - Market bars crossing contract roll gaps, maintenance breaks, holidays, or invalid sessions are excluded from target calculation.
 - Dedupe is deterministic by `post_id` and `content_hash`.
 - `check-archive-freshness` writes HTTP metadata, local row count, duplicate post IDs, duplicate content hashes, empty text rows, media-only rows, and max post timestamp to `reports/archive_freshness_report.json`.

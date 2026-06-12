@@ -37,6 +37,7 @@ PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/resear
 PYTHONPATH=src python -m sentiment_engine check-archive-freshness --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
 PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
+PYTHONPATH=src python -m sentiment_engine download-databento-market --config configs/research.yaml --start 2022-02-14T00:00:00Z --end 2026-06-12T23:59:59Z --symbols NQ.c.0 --symbol-root NQ
 PYTHONPATH=src python -m sentiment_engine build-archive-events --config configs/research.yaml --posts data/processed/cnn_archive_posts.parquet --market data/processed/market_bars.parquet
 PYTHONPATH=src python -m sentiment_engine build-events --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine export-label-queue --config configs/research.yaml --limit 100
@@ -71,6 +72,20 @@ The post side is implemented through the CNN archive adapter. The market side ex
 ```bash
 PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
+python scripts/run_real_event_build.py --market data/processed/market_bars.parquet
+```
+
+If you have Databento historical access, install the optional provider dependency and set the API key in the shell environment. The downloader calls Databento Historical `timeseries.get_range`, normalizes the returned OHLCV bars to the canonical `MarketBar` schema, writes `data/processed/market_bars.parquet`, and records `reports/databento_download_audit.json`.
+
+```bash
+pip install -e ".[market]"
+export DATABENTO_API_KEY="..."
+PYTHONPATH=src python -m sentiment_engine download-databento-market \
+  --config configs/research.yaml \
+  --start 2022-02-14T00:00:00Z \
+  --end 2026-06-12T23:59:59Z \
+  --symbols NQ.c.0 \
+  --symbol-root NQ
 python scripts/run_real_event_build.py --market data/processed/market_bars.parquet
 ```
 

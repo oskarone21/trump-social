@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from sentiment_engine.config import ensure_output_dirs, load_config
@@ -8,6 +9,14 @@ from sentiment_engine.backtest.simulator import run_kill_switch_backtest
 from sentiment_engine.ingestion.archive_monitor import (
     STALE_AFTER_MINUTES_DEFAULT,
     build_archive_freshness_report,
+)
+from sentiment_engine.ingestion.databento_provider import (
+    DATABENTO_DATASET_DEFAULT,
+    DATABENTO_SCHEMA_DEFAULT,
+    DATABENTO_STYPE_IN_DEFAULT,
+    DATABENTO_STYPE_OUT_DEFAULT,
+    download_databento_ohlcv,
+    parse_symbol_list,
 )
 from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market_csv
 from sentiment_engine.ingestion.market_files import DATABENTO_OHLCV_SOURCE, load_market_file
@@ -35,8 +44,12 @@ from sentiment_engine.utils.io import write_dataframe, write_json
 
 
 def main(argv: list[str] | None = None) -> None:
+    raw_args, config_path = _extract_config_arg(
+        sys.argv[1:] if argv is None else argv,
+        default="configs/research.yaml",
+    )
     parser = argparse.ArgumentParser(prog="sentiment-engine")
-    parser.add_argument("--config", default="configs/research.yaml")
+    parser.add_argument("--config", default=config_path)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("ingest-posts")
     archive_parser = subparsers.add_parser("ingest-archive")
@@ -59,6 +72,19 @@ def main(argv: list[str] | None = None) -> None:
     market_file_parser.add_argument("--contract-symbol", default=None)
     market_file_parser.add_argument("--continuous-symbol", default=None)
     market_file_parser.add_argument("--out", default=None)
+    databento_parser = subparsers.add_parser("download-databento-market")
+    databento_parser.add_argument("--start", required=True)
+    databento_parser.add_argument("--end", default=None)
+    databento_parser.add_argument("--symbols", default="NQ.c.0")
+    databento_parser.add_argument("--dataset", default=DATABENTO_DATASET_DEFAULT)
+    databento_parser.add_argument("--schema", default=DATABENTO_SCHEMA_DEFAULT)
+    databento_parser.add_argument("--stype-in", default=DATABENTO_STYPE_IN_DEFAULT)
+    databento_parser.add_argument("--stype-out", default=DATABENTO_STYPE_OUT_DEFAULT)
+    databento_parser.add_argument("--limit", type=int, default=None)
+    databento_parser.add_argument("--symbol-root", choices=["NQ", "MNQ"], default="NQ")
+    databento_parser.add_argument("--contract-symbol", default=None)
+    databento_parser.add_argument("--continuous-symbol", default=None)
+    databento_parser.add_argument("--out", default=None)
     subparsers.add_parser("build-events")
     archive_events_parser = subparsers.add_parser("build-archive-events")
     archive_events_parser.add_argument("--posts", default=None)
@@ -84,7 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     subparsers.add_parser("latest-signal")
     subparsers.add_parser("run-full")
     subparsers.add_parser("serve")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_args)
     config = load_config(args.config)
     ensure_output_dirs(config)
     if args.command == "ingest-posts":
@@ -100,6 +126,22 @@ def main(argv: list[str] | None = None) -> None:
             config,
             args.input,
             args.source_name,
+            args.symbol_root,
+            args.contract_symbol,
+            args.continuous_symbol,
+            args.out,
+        )
+    elif args.command == "download-databento-market":
+        _download_databento_market(
+            config,
+            args.start,
+            args.end,
+            args.symbols,
+            args.dataset,
+            args.schema,
+            args.stype_in,
+            args.stype_out,
+            args.limit,
             args.symbol_root,
             args.contract_symbol,
             args.continuous_symbol,
@@ -205,6 +247,46 @@ def _ingest_market_file(
     write_dataframe(bars, target)
     write_json(config.paths.report_dir / "market_ingestion_audit.json", audit_market_bars(bars))
     print(f"ingested {len(bars)} market bars from {input_path}")
+
+
+def _download_databento_market(
+    config,
+    start: str,
+    end: str | None,
+    symbols: str,
+    dataset: str,
+    schema: str,
+    stype_in: str,
+    stype_out: str,
+    limit: int | None,
+    symbol_root: str,
+    contract_symbol: str | None,
+    continuous_symbol: str | None,
+    output_path: str | None,
+) -> None:
+    try:
+        bars, audit = download_databento_ohlcv(
+            start=start,
+            end=end,
+            symbols=parse_symbol_list(symbols),
+            dataset=dataset,
+            schema=schema,
+            stype_in=stype_in,
+            stype_out=stype_out,
+            limit=limit,
+            symbol_root=symbol_root,
+            contract_symbol=contract_symbol,
+            continuous_symbol=continuous_symbol,
+        )
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
+    target = (
+        Path(output_path) if output_path else config.paths.processed_dir / "market_bars.parquet"
+    )
+    write_dataframe(bars, target)
+    write_json(config.paths.report_dir / "market_ingestion_audit.json", audit_market_bars(bars))
+    write_json(config.paths.report_dir / "databento_download_audit.json", audit)
+    print(f"downloaded {len(bars)} Databento market bars to {target}")
 
 
 def _build_events(config) -> None:
@@ -473,6 +555,26 @@ def _read_optional_json_report(path: Path):
     if not path.exists():
         return None
     return _read_json_report(path)
+
+
+def _extract_config_arg(args: list[str], *, default: str) -> tuple[list[str], str]:
+    cleaned: list[str] = []
+    config_path = default
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--config":
+            if index + 1 >= len(args):
+                raise SystemExit("--config requires a value")
+            config_path = args[index + 1]
+            index += 2
+        elif arg.startswith("--config="):
+            config_path = arg.split("=", 1)[1]
+            index += 1
+        else:
+            cleaned.append(arg)
+            index += 1
+    return cleaned, config_path
 
 
 if __name__ == "__main__":
