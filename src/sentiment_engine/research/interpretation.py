@@ -18,6 +18,7 @@ def build_interpretation_report(reports: dict[str, dict[str, Any] | None]) -> di
         "status": "real_research_ready" if all(gates.values()) else "not_research_ready",
         "model_comparison": model_rows,
         "finbert_summary": _finbert_summary(reports.get("finbert")),
+        "walk_forward_summary": _walk_forward_summary(reports.get("walk_forward")),
         "best_fixture_model": _best_model(model_rows),
         "data_quality": _data_quality(reports),
         "whipsaw_summary": _whipsaw_summary(reports.get("whipsaw")),
@@ -74,6 +75,19 @@ def render_interpretation_markdown(payload: dict[str, Any]) -> str:
                 f"- `scored_rows`: `{finbert.get('scored_rows')}`",
                 f"- `label_counts`: `{finbert.get('label_counts')}`",
                 f"- `mean_scores`: `{finbert.get('mean_scores')}`",
+            ]
+        )
+    walk_forward = payload.get("walk_forward_summary") or {}
+    if walk_forward:
+        lines.extend(
+            [
+                "",
+                "## Walk-Forward Validation",
+                "",
+                f"- `status`: `{walk_forward.get('status')}`",
+                f"- `fold_count`: `{walk_forward.get('fold_count')}`",
+                f"- `split_method`: `{walk_forward.get('split_method')}`",
+                f"- `embargo_rows`: `{walk_forward.get('embargo_rows')}`",
             ]
         )
     lines.extend(
@@ -206,6 +220,22 @@ def _finbert_summary(report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _walk_forward_summary(report: dict[str, Any] | None) -> dict[str, Any]:
+    if not report:
+        return {}
+    return {
+        "status": report.get("status"),
+        "fold_count": report.get("fold_count", 0),
+        "split_method": report.get("split_method"),
+        "embargo_rows": report.get("embargo_rows"),
+        "model_summary": report.get("model_summary", {}),
+        "methodology_note": (
+            "Walk-forward fixture folds are validation plumbing; real model promotion "
+            "requires larger human-labeled out-of-sample periods."
+        ),
+    }
+
+
 def _readiness_gates(reports: dict[str, dict[str, Any] | None]) -> dict[str, bool]:
     archive = reports.get("archive") or {}
     market = reports.get("market") or {}
@@ -250,6 +280,12 @@ def _interpretation(
         notes.append(
             "FinBERT inference is available for financial-tone diagnostics, but it is not "
             "a calibrated tradeability model."
+        )
+    walk_forward = reports.get("walk_forward") or {}
+    if walk_forward.get("status") == "evaluated":
+        notes.append(
+            f"Walk-forward validation ran over {walk_forward.get('fold_count')} fixture folds; "
+            "treat it as process validation until real labeled events exist."
         )
     notes.append(
         "Fixture backtest PnL changes are accounting checks only and must not be treated as edge."

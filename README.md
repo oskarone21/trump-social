@@ -49,12 +49,13 @@ PYTHONPATH=src python -m sentiment_engine backtest --config configs/research.yam
 PYTHONPATH=src python -m sentiment_engine interpret-results --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine dashboard --config configs/research.yaml
 python scripts/run_model_training.py configs/research.yaml
+python scripts/run_walk_forward.py configs/research.yaml
 python scripts/run_finbert_inference.py --config configs/research.yaml --limit 8
 python scripts/run_archive_backfill.py --config configs/research.yaml
 python scripts/run_full_pipeline.py configs/research.yaml
 ```
 
-The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, the kill-switch backtest audit, and interpretation reports in `reports/research_interpretation.json` and `reports/research_interpretation.md`.
+The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, the kill-switch backtest audit, and interpretation reports in `reports/research_interpretation.json` and `reports/research_interpretation.md`. Walk-forward validation is available separately through `scripts/run_walk_forward.py` and writes `reports/walk_forward_report.json`.
 
 When optional model packages are installed, the full run also writes `reports/lightgbm_baseline_report.json` and `reports/neural_baseline_report.json`. The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. Probabilistic rows include log loss, Brier score, ECE, and confidence-threshold abstention diagnostics. The neural report is a PyTorch smoke baseline, not a trained FinBERT/DeBERTa model. FinBERT inference is available separately through `scripts/run_finbert_inference.py`; it writes `reports/finbert_inference_report.json` and `reports/finbert_scores.parquet` when model weights are available.
 

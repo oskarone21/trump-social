@@ -461,19 +461,28 @@ def _metrics(
     *,
     y_proba: np.ndarray | None = None,
     proba_labels: list[str] | None = None,
+    labels: list[str] | None = None,
 ) -> dict[str, Any]:
-    labels = sorted(set(y_true).union(y_pred))
-    matrix = confusion_matrix(y_true, y_pred, labels=labels)
+    metric_labels = labels or sorted(set(y_true).union(y_pred))
+    matrix = confusion_matrix(y_true, y_pred, labels=metric_labels)
     metrics = {
         "macro_f1": round(
-            float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
+            float(
+                f1_score(
+                    y_true,
+                    y_pred,
+                    labels=metric_labels,
+                    average="macro",
+                    zero_division=0,
+                )
+            ),
             6,
         ),
         "classification_report": classification_report(
-            y_true, y_pred, labels=labels, zero_division=0, output_dict=True
+            y_true, y_pred, labels=metric_labels, zero_division=0, output_dict=True
         ),
         "confusion_matrix": {
-            "labels": labels,
+            "labels": metric_labels,
             "rows": matrix.tolist(),
         },
     }

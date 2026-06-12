@@ -19,6 +19,7 @@ Implemented:
 - PyTorch TF-IDF MLP smoke baseline when optional `dl` dependencies are installed.
 - Probability-quality metrics for probabilistic baselines: log loss, multiclass Brier score, and expected calibration error.
 - Confidence-threshold abstention diagnostics for probabilistic baselines.
+- Expanding walk-forward validation script for classifier baselines.
 - Rule-based sentiment/topic/tradeability classifier.
 - Weighted whipsaw detector and Optuna tuning report.
 - Static dashboard and optional FastAPI service.
@@ -248,7 +249,7 @@ Acceptance:
 - [ ] Add Optuna tuning for TF-IDF/logistic-regression hyperparameters.
 - [ ] Add Optuna tuning for LightGBM.
 - [ ] Add Optuna pruning for DL fine-tuning only after dataset size justifies it.
-- [ ] Add parameter stability report across walk-forward folds.
+- [x] Add model stability report across walk-forward folds.
 
 Do not tune on the final test period.
 
@@ -350,7 +351,7 @@ Acceptance:
 - [x] `scripts/run_archive_backfill.py`.
 - [x] `scripts/run_real_event_build.py`.
 - [x] `scripts/run_model_training.py`.
-- [ ] `scripts/run_walk_forward.py`.
+- [x] `scripts/run_walk_forward.py`.
 - [ ] `scripts/run_shadow_report.py`.
 - [ ] Add CI test matrix:
   - [ ] unit tests
@@ -390,6 +391,7 @@ PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-reviewed-labels --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml interpret-results
 python scripts/run_model_training.py configs/research.yaml
+python scripts/run_walk_forward.py configs/research.yaml
 python scripts/run_finbert_inference.py --config configs/research.yaml --limit 8
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
@@ -408,10 +410,11 @@ Latest known verification:
 - Label queue export: 5 review rows, post-event target columns excluded.
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
+- Walk-forward validation: 4 embargoed fixture folds written to `reports/walk_forward_report.json`.
 - FinBERT inference path: unit tested with deterministic classifier and verified with
   `ProsusAI/finbert` on 2 fixture rows.
 - Dashboard: FinBERT inference summary visible when `reports/finbert_inference_report.json` exists.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
-- Tests: 34 passed.
+- Tests: 35 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

@@ -24,6 +24,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | LightGBM tradeability baseline | Yes | Optional LightGBM text/context baseline | `src/sentiment_engine/models/baselines.py` |
 | Neural tradeability smoke baseline | Yes | Optional PyTorch MLP over TF-IDF/context features | `src/sentiment_engine/models/baselines.py` |
 | FinBERT inference baseline | Yes | Optional transformer financial-tone inference | `src/sentiment_engine/models/finbert.py` |
+| Walk-forward validation | Yes | Expanding chronological folds with row embargo | `src/sentiment_engine/models/walk_forward.py` |
 | Naive baseline | Yes | Majority-class baseline | `src/sentiment_engine/models/baselines.py` |
 | Whipsaw detector | Yes | Weighted transparent scoring model | `src/sentiment_engine/models/whipsaw.py` |
 | Timing model | Yes | Empirical hazard/count features | `src/sentiment_engine/models/timing.py` |
@@ -71,7 +72,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-34 passed, 1 warning
+35 passed, 5 warnings
 ```
 
 ## Real Archive Smoke Test
@@ -227,8 +228,19 @@ Additional model reports:
 - `reports/lightgbm_baseline_report.json`
 - `reports/neural_baseline_report.json`
 - `reports/finbert_inference_report.json` when `scripts/run_finbert_inference.py` is run
+- `reports/walk_forward_report.json` when `scripts/run_walk_forward.py` is run
 
 These reports include explicit methodology notes warning that fixture metrics are not evidence of economic edge.
+
+## Walk-Forward Validation
+
+Implemented command:
+
+```bash
+python scripts/run_walk_forward.py configs/research.yaml
+```
+
+The fixture run writes `reports/walk_forward_report.json` with 4 expanding chronological folds, a 1-row embargo, aggregate model metrics, and fold-level macro-F1 stability for naive, rules, TF-IDF logistic regression, and TF-IDF linear SVM. This is validation plumbing only; real promotion still needs enough human-labeled, market-joined events and a time-based purge at least as large as the maximum event-target horizon.
 
 ## FinBERT Inference Verification
 

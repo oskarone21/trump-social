@@ -478,6 +478,9 @@ def _interpret_results(config) -> None:
         "finbert": _read_optional_json_report(
             config.paths.report_dir / "finbert_inference_report.json"
         ),
+        "walk_forward": _read_optional_json_report(
+            config.paths.report_dir / "walk_forward_report.json"
+        ),
         "human_labels": _read_optional_json_report(
             config.paths.report_dir / "human_label_audit.json"
         ),
