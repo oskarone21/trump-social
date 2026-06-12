@@ -49,6 +49,8 @@ For a plain-English status of implemented models, results, metrics, tuned parame
 
 For the source and deep-learning readiness path, see [docs/dl_data_strategy.md](docs/dl_data_strategy.md).
 
+For the complete outstanding implementation plan, see [TASKS.md](TASKS.md).
+
 ## API
 
 The FastAPI service is optional because local research and CI should not require web-server dependencies:
