@@ -105,6 +105,7 @@ PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
   --api-key "$YOUR_PROVIDER_KEY" \
   --api-key-header x-api-key \
   --header "Accept: application/json"
+```
 
 Source probe you can run before a pull-path change:
 
@@ -113,7 +114,6 @@ PYTHONPATH=src python scripts/run_truthsocial_source_probe.py
 ```
 
 It emits `reports/truthsocial_source_probe.json` with endpoint status, latency, headers, and recommended fallback posture.
-```
 
 The post audit records empty-text and media-only rows. Those rows are valid archive records, but they should not be blindly used for text-only DL training.
 
