@@ -12,6 +12,8 @@ Implemented:
 - CNN `ix.cnn.io` Truth Social archive adapter via `ingest-archive`.
 - Real archive smoke ingest verified on 2026-06-12 with 25 recent posts.
 - TF-IDF + logistic-regression baseline.
+- LightGBM classifier smoke baseline when optional `ml` dependencies are installed.
+- PyTorch TF-IDF MLP smoke baseline when optional `dl` dependencies are installed.
 - Rule-based sentiment/topic/tradeability classifier.
 - Weighted whipsaw detector and Optuna tuning report.
 - Static dashboard and optional FastAPI service.
@@ -21,7 +23,7 @@ Not yet implemented:
 - Licensed historical NQ/MNQ market-data ingestion at the scale required for research.
 - Real event dataset joining CNN archive posts to NQ/MNQ bars.
 - Human-reviewed sentiment/topic/tradeability labels.
-- LightGBM baseline.
+- Production-grade LightGBM walk-forward baseline on real archive + market data.
 - FinBERT, DeBERTa/DistilBERT, sentence-transformer, cross-encoder/NLI, or LSTM models.
 - Statistical interpretation of ML/DL results on real out-of-sample data.
 - Live provider integration with an SLA/contract and heartbeat.
@@ -165,8 +167,9 @@ Acceptance:
 - [x] Naive majority baseline.
 - [x] Rule baseline.
 - [x] TF-IDF + logistic regression baseline.
+- [x] LightGBM fixture smoke baseline with leakage-safe text/context features.
 - [ ] TF-IDF + linear SVM baseline.
-- [ ] LightGBM classifier on text + market context features.
+- [ ] LightGBM classifier on real text + market context features.
 - [ ] LightGBM regressor/quantile model for move size and range.
 - [ ] Calibrated probability outputs.
 - [ ] Abstention thresholds.
@@ -193,12 +196,13 @@ Acceptance:
 ## Phase 6: Deep-Learning Models
 
 - [ ] Add optional `dl` dependency group:
-  - [ ] `torch`
-  - [ ] `transformers`
-  - [ ] `datasets`
-  - [ ] `evaluate`
-  - [ ] `sentence-transformers`
-  - [ ] `accelerate`
+  - [x] `torch`
+  - [x] `transformers`
+  - [x] `datasets`
+  - [x] `evaluate`
+  - [x] `sentence-transformers`
+  - [x] `accelerate`
+- [x] Implement PyTorch TF-IDF MLP fixture smoke baseline and report.
 - [ ] Implement FinBERT inference baseline.
 - [ ] Implement DistilBERT/DeBERTa classifier fine-tuning.
 - [ ] Implement sentence-transformer embeddings for clustering/retrieval.
@@ -348,8 +352,8 @@ Acceptance:
 5. Generate real event targets.
 6. Produce first real event-study report.
 7. Add label-review workflow.
-8. Train LightGBM baseline.
-9. Add `dl` dependency group and FinBERT inference baseline.
+8. Train LightGBM baseline on real event data.
+9. Add FinBERT inference baseline.
 10. Fine-tune DeBERTa/DistilBERT only after human labels exist.
 
 ## Current Verification Commands
@@ -364,5 +368,5 @@ Latest known verification:
 
 - Archive smoke ingest: 25 rows, 25 valid, 0 duplicates, 4 empty-text/media-only.
 - Full fixture pipeline: completed.
-- Tests: 9 passed.
+- Tests: 10 passed.
 - Browser dashboard check via localhost: title rendered, backtest metric present, 8 event rows.

@@ -4,11 +4,13 @@ from pathlib import Path
 from typing import Any
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder
 
 from sentiment_engine.features.text_features import enrich_with_text_features
 from sentiment_engine.models.metadata import model_metadata
@@ -18,6 +20,27 @@ TARGET_COLUMN = "tradeability_label"
 TEXT_COLUMN = "text_clean"
 TEMPORAL_COLUMN = "received_at_utc"
 TFIDF_MODEL_VERSION = "tfidf_logreg_v1"
+LIGHTGBM_MODEL_VERSION = "lightgbm_text_context_v1"
+NEURAL_MODEL_VERSION = "neural_tfidf_mlp_v1"
+CLASSIFIER_REPORT_NAME = "classifier_baseline_report.json"
+LIGHTGBM_REPORT_NAME = "lightgbm_baseline_report.json"
+NEURAL_REPORT_NAME = "neural_baseline_report.json"
+TFIDF_MODEL_NAME = "tfidf_tradeability_baseline.joblib"
+LIGHTGBM_MODEL_NAME = "lightgbm_tradeability_baseline.joblib"
+NEURAL_MODEL_NAME = "neural_tfidf_mlp.pt"
+CONTEXT_FEATURE_COLUMNS = [
+    "post_length",
+    "token_count",
+    "all_caps_ratio",
+    "exclamation_count",
+    "question_mark_count",
+    "has_image",
+    "has_video",
+    "rule_sentiment_confidence",
+]
+NEURAL_HIDDEN_UNITS = 16
+NEURAL_EPOCHS = 40
+NEURAL_LEARNING_RATE = 0.03
 
 
 def build_labeled_events(events: pd.DataFrame) -> pd.DataFrame:
@@ -44,6 +67,26 @@ def train_tradeability_baselines(
     naive_predictions = _naive_predictions(train[TARGET_COLUMN], len(test))
     rule_predictions = test["rule_tradeability_label"].tolist()
     tfidf_model, tfidf_predictions = _fit_tfidf(train, test, seed, tfidf_max_features)
+    lightgbm_report = train_lightgbm_baseline(
+        train,
+        test,
+        report_dir=report_dir,
+        model_dir=model_dir,
+        config_path=config_path,
+        seed=seed,
+        tfidf_max_features=tfidf_max_features,
+        all_labeled_events=ordered,
+    )
+    neural_report = train_neural_text_baseline(
+        train,
+        test,
+        report_dir=report_dir,
+        model_dir=model_dir,
+        config_path=config_path,
+        seed=seed,
+        tfidf_max_features=tfidf_max_features,
+        all_labeled_events=ordered,
+    )
 
     target_labels = sorted(ordered[TARGET_COLUMN].unique().tolist())
     report = {
@@ -59,19 +102,23 @@ def train_tradeability_baselines(
         "naive": _metrics(test[TARGET_COLUMN].tolist(), naive_predictions),
         "rules": _metrics(test[TARGET_COLUMN].tolist(), rule_predictions),
         "tfidf_logreg": _metrics(test[TARGET_COLUMN].tolist(), tfidf_predictions),
+        "lightgbm": lightgbm_report,
+        "neural_tfidf_mlp": neural_report,
         "methodology_notes": [
             "Fixture metrics are engineering smoke checks, not statistical evidence.",
             "Rows are split in timestamp order; no random headline split is reported.",
             "Labels are weak research labels until human adjudication exists.",
+            "LightGBM and neural MLP reports are included only when optional dependencies "
+            "are installed.",
         ],
     }
 
     report_dir.mkdir(parents=True, exist_ok=True)
     model_dir.mkdir(parents=True, exist_ok=True)
-    write_json(report_dir / "classifier_baseline_report.json", report)
+    write_json(report_dir / CLASSIFIER_REPORT_NAME, report)
     write_dataframe(labeled_events, report_dir / "labeled_events_snapshot.csv")
     if tfidf_model is not None:
-        joblib.dump(tfidf_model, model_dir / "tfidf_tradeability_baseline.joblib")
+        joblib.dump(tfidf_model, model_dir / TFIDF_MODEL_NAME)
     write_json(
         model_dir / "tfidf_tradeability_baseline.metadata.json",
         model_metadata(
@@ -80,6 +127,185 @@ def train_tradeability_baselines(
             config_path=config_path,
             data=labeled_events,
             extra={"target": TARGET_COLUMN, "temporal_test_fraction": temporal_test_fraction},
+        ),
+    )
+    return report
+
+
+def train_lightgbm_baseline(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    *,
+    report_dir: Path,
+    model_dir: Path,
+    config_path: str,
+    seed: int,
+    tfidf_max_features: int,
+    all_labeled_events: pd.DataFrame,
+) -> dict[str, Any]:
+    try:
+        from lightgbm import LGBMClassifier
+    except ModuleNotFoundError:
+        report = _skipped_report("lightgbm_missing", "Install the optional ml dependency group.")
+        write_json(report_dir / LIGHTGBM_REPORT_NAME, report)
+        return report
+
+    if train[TARGET_COLUMN].nunique() < 2:
+        report = _skipped_report(
+            "insufficient_training_classes", "Need at least two training labels."
+        )
+        write_json(report_dir / LIGHTGBM_REPORT_NAME, report)
+        return report
+
+    label_encoder = _label_encoder(all_labeled_events)
+    train_features, test_features, vectorizer = _text_context_matrices(
+        train, test, tfidf_max_features
+    )
+    model = LGBMClassifier(
+        objective="multiclass",
+        n_estimators=50,
+        learning_rate=0.05,
+        max_depth=3,
+        min_data_in_leaf=1,
+        random_state=seed,
+        n_jobs=1,
+        verbosity=-1,
+    )
+    model.fit(train_features, label_encoder.transform(train[TARGET_COLUMN].astype(str)))
+    predictions = label_encoder.inverse_transform(model.predict(test_features)).tolist()
+    report = {
+        "status": "trained",
+        "model_version": LIGHTGBM_MODEL_VERSION,
+        "feature_view": "tfidf_text_plus_live_time_text_context",
+        "train_rows": int(len(train)),
+        "test_rows": int(len(test)),
+        "metrics": _metrics(test[TARGET_COLUMN].astype(str).tolist(), predictions),
+        "methodology_notes": [
+            "This baseline excludes post-event target columns to avoid look-ahead leakage.",
+            "Fixture metrics are a smoke check only; real comparison needs chronological "
+            "validation.",
+        ],
+    }
+    report_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    write_json(report_dir / LIGHTGBM_REPORT_NAME, report)
+    joblib.dump(
+        {"model": model, "label_encoder": label_encoder, "vectorizer": vectorizer},
+        model_dir / LIGHTGBM_MODEL_NAME,
+    )
+    write_json(
+        model_dir / "lightgbm_tradeability_baseline.metadata.json",
+        model_metadata(
+            model_name="tradeability_lightgbm_baseline",
+            model_version=LIGHTGBM_MODEL_VERSION,
+            config_path=config_path,
+            data=all_labeled_events,
+            extra={"target": TARGET_COLUMN, "feature_columns": CONTEXT_FEATURE_COLUMNS},
+        ),
+    )
+    return report
+
+
+def train_neural_text_baseline(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    *,
+    report_dir: Path,
+    model_dir: Path,
+    config_path: str,
+    seed: int,
+    tfidf_max_features: int,
+    all_labeled_events: pd.DataFrame,
+) -> dict[str, Any]:
+    try:
+        import torch
+        from torch import nn
+    except ModuleNotFoundError:
+        report = _skipped_report("torch_missing", "Install the optional dl dependency group.")
+        write_json(report_dir / NEURAL_REPORT_NAME, report)
+        return report
+
+    if train[TARGET_COLUMN].nunique() < 2:
+        report = _skipped_report(
+            "insufficient_training_classes", "Need at least two training labels."
+        )
+        write_json(report_dir / NEURAL_REPORT_NAME, report)
+        return report
+
+    torch.manual_seed(seed)
+    torch.set_num_threads(1)
+    label_encoder = _label_encoder(all_labeled_events)
+    train_features, test_features, vectorizer = _text_context_matrices(
+        train, test, tfidf_max_features
+    )
+    x_train = torch.tensor(train_features, dtype=torch.float32)
+    y_train = torch.tensor(
+        label_encoder.transform(train[TARGET_COLUMN].astype(str)), dtype=torch.long
+    )
+    x_test = torch.tensor(test_features, dtype=torch.float32)
+
+    model = nn.Sequential(
+        nn.Linear(train_features.shape[1], NEURAL_HIDDEN_UNITS),
+        nn.ReLU(),
+        nn.Linear(NEURAL_HIDDEN_UNITS, len(label_encoder.classes_)),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=NEURAL_LEARNING_RATE)
+    criterion = nn.CrossEntropyLoss()
+    model.train()
+    for _epoch in range(NEURAL_EPOCHS):
+        optimizer.zero_grad()
+        loss = criterion(model(x_train), y_train)
+        loss.backward()
+        optimizer.step()
+
+    model.eval()
+    with torch.no_grad():
+        predicted_indexes = torch.argmax(model(x_test), dim=1).numpy()
+    predictions = label_encoder.inverse_transform(predicted_indexes).tolist()
+    report = {
+        "status": "trained",
+        "model_version": NEURAL_MODEL_VERSION,
+        "architecture": {
+            "input": "tfidf_text_plus_live_time_text_context",
+            "hidden_units": NEURAL_HIDDEN_UNITS,
+            "output_classes": label_encoder.classes_.tolist(),
+        },
+        "train_rows": int(len(train)),
+        "test_rows": int(len(test)),
+        "epochs": NEURAL_EPOCHS,
+        "learning_rate": NEURAL_LEARNING_RATE,
+        "metrics": _metrics(test[TARGET_COLUMN].astype(str).tolist(), predictions),
+        "methodology_notes": [
+            "This is a PyTorch MLP smoke baseline, not a trained FinBERT or DeBERTa model.",
+            "It uses a temporal holdout and excludes post-event target columns.",
+            "Do not interpret fixture performance as economic or statistical evidence.",
+        ],
+    }
+    report_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    write_json(report_dir / NEURAL_REPORT_NAME, report)
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "label_classes": label_encoder.classes_.tolist(),
+            "vectorizer_vocabulary": vectorizer.vocabulary_,
+            "context_feature_columns": CONTEXT_FEATURE_COLUMNS,
+        },
+        model_dir / NEURAL_MODEL_NAME,
+    )
+    write_json(
+        model_dir / "neural_tfidf_mlp.metadata.json",
+        model_metadata(
+            model_name="tradeability_neural_tfidf_mlp",
+            model_version=NEURAL_MODEL_VERSION,
+            config_path=config_path,
+            data=all_labeled_events,
+            extra={
+                "target": TARGET_COLUMN,
+                "feature_columns": CONTEXT_FEATURE_COLUMNS,
+                "epochs": NEURAL_EPOCHS,
+                "seed": seed,
+            },
         ),
     )
     return report
@@ -105,6 +331,46 @@ def _fit_tfidf(
     return model, predictions
 
 
+def _text_context_matrices(
+    train: pd.DataFrame, test: pd.DataFrame, tfidf_max_features: int
+) -> tuple[np.ndarray, np.ndarray, TfidfVectorizer]:
+    vectorizer = TfidfVectorizer(max_features=tfidf_max_features, ngram_range=(1, 2))
+    train_text = vectorizer.fit_transform(train[TEXT_COLUMN].astype(str)).toarray()
+    test_text = vectorizer.transform(test[TEXT_COLUMN].astype(str)).toarray()
+    train_context = _context_matrix(train)
+    test_context = _context_matrix(test)
+    return (
+        np.hstack([train_text, train_context]).astype(np.float32),
+        np.hstack([test_text, test_context]).astype(np.float32),
+        vectorizer,
+    )
+
+
+def _context_matrix(frame: pd.DataFrame) -> np.ndarray:
+    context = frame[CONTEXT_FEATURE_COLUMNS].copy()
+    for column in ("has_image", "has_video"):
+        context[column] = context[column].astype(int)
+    return context.fillna(0).astype(float).to_numpy()
+
+
+def _label_encoder(labeled_events: pd.DataFrame) -> LabelEncoder:
+    encoder = LabelEncoder()
+    encoder.fit(sorted(labeled_events[TARGET_COLUMN].astype(str).unique().tolist()))
+    return encoder
+
+
+def _skipped_report(reason: str, remediation: str) -> dict[str, Any]:
+    return {
+        "status": "skipped",
+        "reason": reason,
+        "remediation": remediation,
+        "methodology_notes": [
+            "Skipping is explicit so missing optional model dependencies do not silently "
+            "look trained."
+        ],
+    }
+
+
 def _naive_predictions(labels: pd.Series, count: int) -> list[str]:
     if labels.empty:
         raise ValueError("Cannot build naive baseline without training labels")
@@ -116,7 +382,10 @@ def _metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
     labels = sorted(set(y_true).union(y_pred))
     matrix = confusion_matrix(y_true, y_pred, labels=labels)
     return {
-        "macro_f1": round(float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)), 6),
+        "macro_f1": round(
+            float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
+            6,
+        ),
         "classification_report": classification_report(
             y_true, y_pred, labels=labels, zero_division=0, output_dict=True
         ),

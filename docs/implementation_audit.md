@@ -7,9 +7,9 @@ This audit answers what is actually implemented in the current repo. It is based
 ## Bottom Line
 
 - The repo implements a fixture-backed research and live-advisory vertical slice.
-- It does not implement deep-learning models.
+- It implements a PyTorch TF-IDF MLP smoke baseline, but it does not implement production-grade transformer models.
 - It does not prove a tradable edge.
-- It does implement one ML baseline: TF-IDF features plus logistic regression.
+- It implements three executable ML/DL baseline paths: TF-IDF logistic regression, optional LightGBM, and optional PyTorch TF-IDF MLP.
 - It implements rule-based sentiment/topic labels, deterministic event targets, weighted whipsaw scoring, Optuna tuning reports, a kill-switch backtest, a signal JSON contract, an optional FastAPI service, and a static dashboard.
 - All current results are from 8 fixture posts, 340 fixture NQ one-minute bars, and 4 fixture baseline trades.
 - It can now ingest the CNN-hosted Trump Truth Social archive for historical/backfill posts via `ingest-archive`.
@@ -20,6 +20,8 @@ This audit answers what is actually implemented in the current repo. It is based
 |---|---:|---|---|
 | Keyword/topic classifier | Yes | Rule-based NLP baseline | `src/sentiment_engine/models/rules.py` |
 | Tradeability baseline | Yes | TF-IDF + logistic regression | `src/sentiment_engine/models/baselines.py` |
+| LightGBM tradeability baseline | Yes | Optional LightGBM text/context baseline | `src/sentiment_engine/models/baselines.py` |
+| Neural tradeability smoke baseline | Yes | Optional PyTorch MLP over TF-IDF/context features | `src/sentiment_engine/models/baselines.py` |
 | Naive baseline | Yes | Majority-class baseline | `src/sentiment_engine/models/baselines.py` |
 | Whipsaw detector | Yes | Weighted transparent scoring model | `src/sentiment_engine/models/whipsaw.py` |
 | Timing model | Yes | Empirical hazard/count features | `src/sentiment_engine/models/timing.py` |
@@ -27,7 +29,6 @@ This audit answers what is actually implemented in the current repo. It is based
 | CNN archive adapter | Yes | Real post backfill ingestion | `src/sentiment_engine/ingestion/posts_cnn_archive.py` |
 | Transformer / FinBERT / DeBERTa | No | Not implemented | Real labels and larger data required first |
 | LSTM / deep sequence model | No | Not implemented | Not justified for v1 fixtures |
-| LightGBM | No | Not implemented | Deferred until real feature volume exists |
 
 ## Results From Latest Full Run
 
@@ -62,7 +63,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-9 passed
+10 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -104,8 +105,17 @@ Metrics:
 | Naive majority baseline | 0.3333 | 0.2500 | Predicts majority class only |
 | Rule tradeability baseline | 0.3333 | 0.1667 | Text/topic heuristics |
 | TF-IDF + logistic regression | 0.6667 | 0.6667 | ML baseline; tiny holdout |
+| LightGBM text/context | 0.6667 | 0.6667 | Optional ML baseline; excludes post-event target columns |
+| PyTorch TF-IDF MLP | 0.3333 | 0.2500 | DL smoke baseline, not a transformer |
 
 The macro F1 result is not statistically meaningful because the fixture holdout has only 3 rows. It is an integration check proving the evaluation path works.
+
+Additional model reports:
+
+- `reports/lightgbm_baseline_report.json`
+- `reports/neural_baseline_report.json`
+
+Both reports include explicit methodology notes warning that fixture metrics are not evidence of economic edge.
 
 ## Whipsaw Results
 
@@ -297,6 +307,8 @@ Current fixed classifier hyperparameters:
 
 - `TfidfVectorizer(max_features=250, ngram_range=(1, 2))`
 - `LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42)`
+- `LGBMClassifier(n_estimators=50, learning_rate=0.05, max_depth=3, min_data_in_leaf=1, n_jobs=1, random_state=42)`
+- PyTorch MLP: TF-IDF/context input, `16` hidden units, `40` epochs, Adam learning rate `0.03`
 - Temporal holdout fraction: `0.35`
 - Seed: `42`
 
@@ -339,7 +351,8 @@ Known limitation:
 - No real Truth Social provider integration has been validated.
 - No real NQ/MNQ licensed historical data has been loaded.
 - No human-labeled dataset exists.
-- No transformer, FinBERT, DeBERTa, LightGBM, or deep-learning model is trained.
+- No transformer, FinBERT, DeBERTa, LSTM, or production-grade deep-learning model is trained.
+- LightGBM and PyTorch MLP are fixture smoke baselines only.
 - No statistical significance claim can be made from fixtures.
 - No Optuna result should be promoted without real walk-forward validation.
 - No live blocking should be enabled; current posture remains advisory/shadow-mode.

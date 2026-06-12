@@ -4,7 +4,7 @@ Verification date: 2026-06-12.
 
 ## Problem
 
-The previous implementation did not train FinBERT, DeBERTa, LSTM, or other deep-learning models because it only had local fixtures. That was the right constraint: a transformer trained on eight synthetic rows would be fake progress.
+The implementation now includes a PyTorch TF-IDF MLP smoke baseline so the DL training/reporting path can be executed. It still does not train FinBERT, DeBERTa, LSTM, or other production-grade deep-learning models because the repo only has local fixtures. That remains the right constraint: a transformer trained on eight synthetic rows would be fake progress.
 
 ## Practical Source Path
 
@@ -43,6 +43,14 @@ It writes:
 The adapter also supports local JSON/CSV/parquet files for repeatable tests.
 
 The post audit records empty-text and media-only rows. Those rows are valid archive records, but they should not be blindly used for text-only DL training.
+
+The repo also writes visible ML/DL smoke reports during the fixture pipeline:
+
+- `reports/classifier_baseline_report.json`
+- `reports/lightgbm_baseline_report.json`
+- `reports/neural_baseline_report.json`
+
+The neural report is a PyTorch MLP over TF-IDF/context features. It proves the deterministic training/evaluation/report path works; it is not a substitute for FinBERT, DeBERTa, or a human-labeled validation set.
 
 ## DL Readiness Gate
 

@@ -10,6 +10,7 @@ The v1 posture is advisory and shadow-mode by default. It does not place orders 
 - Pluggable post and market-data ingestion boundaries.
 - UTC-only timestamp handling and leakage-safe event target construction.
 - Rule and TF-IDF baselines before any transformer work.
+- Optional LightGBM and PyTorch TF-IDF MLP smoke baselines for visible ML/DL reports.
 - Whipsaw, contradiction, stale-feed, and kill-switch semantics.
 - Static dashboard output for visual verification.
 
@@ -44,6 +45,12 @@ python scripts/run_full_pipeline.py configs/research.yaml
 ```
 
 The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, and the kill-switch backtest audit.
+
+When optional model packages are installed, the full run also writes `reports/lightgbm_baseline_report.json` and `reports/neural_baseline_report.json`. The neural report is a PyTorch smoke baseline, not a trained FinBERT/DeBERTa model.
+
+```bash
+pip install -e ".[ml,dl]"
+```
 
 For a plain-English status of implemented models, results, metrics, tuned parameters, Optuna, and data-cleanliness checks, see [docs/implementation_audit.md](docs/implementation_audit.md).
 
