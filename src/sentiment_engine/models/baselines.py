@@ -44,6 +44,7 @@ CONTEXT_FEATURE_COLUMNS = [
 NEURAL_HIDDEN_UNITS = 16
 NEURAL_EPOCHS = 40
 NEURAL_LEARNING_RATE = 0.03
+ABSTENTION_THRESHOLDS = [0.0, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 
 def build_labeled_events(events: pd.DataFrame) -> pd.DataFrame:
@@ -477,19 +478,27 @@ def _metrics(
         },
     }
     if y_proba is not None and proba_labels is not None:
-        metrics["probability_metrics"] = _probability_metrics(y_true, y_proba, proba_labels)
+        metrics["probability_metrics"] = _probability_metrics(
+            y_true, y_pred, y_proba, proba_labels
+        )
     return metrics
 
 
 def _probability_metrics(
-    y_true: list[str], y_proba: np.ndarray, proba_labels: list[str]
+    y_true: list[str], y_pred: list[str], y_proba: np.ndarray, proba_labels: list[str]
 ) -> dict[str, Any]:
     aligned, labels = _align_probabilities(y_true, y_proba, proba_labels)
     true_indexes = np.array([labels.index(label) for label in y_true])
     one_hot = np.zeros_like(aligned)
     one_hot[np.arange(len(y_true)), true_indexes] = 1.0
-    predicted_indexes = aligned.argmax(axis=1)
-    confidences = aligned.max(axis=1)
+    label_indexes = {label: index for index, label in enumerate(labels)}
+    predicted_indexes = np.array([label_indexes.get(label, -1) for label in y_pred])
+    confidences = np.array(
+        [
+            aligned[index, predicted_index] if predicted_index >= 0 else 0.0
+            for index, predicted_index in enumerate(predicted_indexes)
+        ]
+    )
     correctness = (predicted_indexes == true_indexes).astype(float)
     brier_score = float(np.mean(np.sum((aligned - one_hot) ** 2, axis=1)))
     calibration_error = _expected_calibration_error(confidences, correctness)
@@ -498,6 +507,11 @@ def _probability_metrics(
         "negative_log_loss": round(float(log_loss(y_true, aligned, labels=labels)), 6),
         "expected_calibration_error": round(float(calibration_error), 6),
         "class_labels": labels,
+        "abstention_curve": _abstention_curve(y_true, y_pred, aligned, labels),
+        "threshold_note": (
+            "Confidence-threshold rows are holdout diagnostics. Promote thresholds only "
+            "from validation folds with enough human-reviewed labels."
+        ),
     }
 
 
@@ -536,3 +550,62 @@ def _expected_calibration_error(
         confidence_gap = abs(float(confidences[mask].mean()) - float(correctness[mask].mean()))
         ece += float(mask.mean()) * confidence_gap
     return ece
+
+
+def _abstention_curve(
+    y_true: list[str], y_pred: list[str], aligned_probabilities: np.ndarray, labels: list[str]
+) -> list[dict[str, Any]]:
+    predicted_labels = list(y_pred)
+    label_indexes = {label: index for index, label in enumerate(labels)}
+    confidences = np.array(
+        [
+            aligned_probabilities[index, label_indexes[predicted]]
+            if predicted in label_indexes
+            else 0.0
+            for index, predicted in enumerate(predicted_labels)
+        ]
+    )
+    rows = []
+    for threshold in ABSTENTION_THRESHOLDS:
+        retained = confidences >= threshold
+        retained_true = [label for index, label in enumerate(y_true) if retained[index]]
+        retained_pred = [
+            label for index, label in enumerate(predicted_labels) if retained[index]
+        ]
+        rows.append(
+            {
+                "confidence_threshold": threshold,
+                "retained_count": int(retained.sum()),
+                "abstained_count": int((~retained).sum()),
+                "coverage": round(float(retained.mean()), 6),
+                "accuracy": _retained_accuracy(retained_true, retained_pred),
+                "macro_f1": _retained_macro_f1(retained_true, retained_pred),
+                "predicted_label_counts": _label_counts(retained_pred),
+                "true_label_counts": _label_counts(retained_true),
+            }
+        )
+    return rows
+
+
+def _retained_accuracy(y_true: list[str], y_pred: list[str]) -> float | None:
+    if not y_true:
+        return None
+    correct = sum(actual == predicted for actual, predicted in zip(y_true, y_pred))
+    return round(correct / len(y_true), 6)
+
+
+def _retained_macro_f1(y_true: list[str], y_pred: list[str]) -> float | None:
+    if not y_true:
+        return None
+    labels = sorted(set(y_true).union(y_pred))
+    return round(
+        float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
+        6,
+    )
+
+
+def _label_counts(labels: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for label in labels:
+        counts[label] = counts.get(label, 0) + 1
+    return counts

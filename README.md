@@ -54,7 +54,7 @@ python scripts/run_full_pipeline.py configs/research.yaml
 
 The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, the kill-switch backtest audit, and interpretation reports in `reports/research_interpretation.json` and `reports/research_interpretation.md`.
 
-When optional model packages are installed, the full run also writes `reports/lightgbm_baseline_report.json` and `reports/neural_baseline_report.json`. The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. The neural report is a PyTorch smoke baseline, not a trained FinBERT/DeBERTa model.
+When optional model packages are installed, the full run also writes `reports/lightgbm_baseline_report.json` and `reports/neural_baseline_report.json`. The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. Probabilistic rows include log loss, Brier score, ECE, and confidence-threshold abstention diagnostics. The neural report is a PyTorch smoke baseline, not a trained FinBERT/DeBERTa model.
 
 ```bash
 pip install -e ".[ml,dl]"

@@ -18,6 +18,7 @@ Implemented:
 - LightGBM classifier smoke baseline when optional `ml` dependencies are installed.
 - PyTorch TF-IDF MLP smoke baseline when optional `dl` dependencies are installed.
 - Probability-quality metrics for probabilistic baselines: log loss, multiclass Brier score, and expected calibration error.
+- Confidence-threshold abstention diagnostics for probabilistic baselines.
 - Rule-based sentiment/topic/tradeability classifier.
 - Weighted whipsaw detector and Optuna tuning report.
 - Static dashboard and optional FastAPI service.
@@ -186,6 +187,7 @@ Acceptance:
 - [ ] Calibrated probability outputs.
 - [ ] Abstention thresholds.
 - [x] Probability-quality metrics: log loss, multiclass Brier score, and ECE.
+- [x] Confidence-threshold abstention curve diagnostics.
 - [ ] SHAP or permutation feature importance.
 
 Metrics:

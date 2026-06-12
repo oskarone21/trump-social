@@ -139,7 +139,8 @@ def _interpretation_section(report: dict[str, Any] | None) -> str:
     <h2>Model Comparison</h2>
     <table>
       <thead>
-        <tr><th>Model</th><th>Type</th><th>Status</th><th>Accuracy</th><th>Macro F1</th></tr>
+        <tr><th>Model</th><th>Type</th><th>Status</th><th>Accuracy</th><th>Macro F1</th>
+          <th>Log Loss</th><th>ECE</th></tr>
       </thead>
       <tbody>
         {model_rows}
@@ -161,6 +162,8 @@ def _model_row(row: dict[str, Any]) -> str:
         f"<td>{html.escape(str(row.get('status', '')))}</td>"
         f"<td>{_html_metric(row.get('accuracy'))}</td>"
         f"<td>{_html_metric(row.get('macro_f1'))}</td>"
+        f"<td>{_html_metric(row.get('negative_log_loss'))}</td>"
+        f"<td>{_html_metric(row.get('ece'))}</td>"
         "</tr>"
     )
 

@@ -51,13 +51,14 @@ def render_interpretation_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Model Comparison",
         "",
-        "| Model | Type | Status | Accuracy | Macro F1 |",
-        "|---|---|---:|---:|---:|",
+        "| Model | Type | Status | Accuracy | Macro F1 | Log Loss | ECE |",
+        "|---|---|---:|---:|---:|---:|---:|",
     ]
     for row in payload["model_comparison"]:
         lines.append(
             f"| {row['model']} | {row['model_type']} | {row['status']} | "
-            f"{_fmt(row.get('accuracy'))} | {_fmt(row.get('macro_f1'))} |"
+            f"{_fmt(row.get('accuracy'))} | {_fmt(row.get('macro_f1'))} | "
+            f"{_fmt(row.get('negative_log_loss'))} | {_fmt(row.get('ece'))} |"
         )
     lines.extend(
         [
@@ -102,6 +103,7 @@ def _model_rows(classifier_report: dict[str, Any] | None) -> list[dict[str, Any]
         metrics = raw.get("metrics", raw)
         status = raw.get("status", "trained")
         classification = metrics.get("classification_report", {})
+        probability = metrics.get("probability_metrics", {})
         rows.append(
             {
                 "key": key,
@@ -110,6 +112,9 @@ def _model_rows(classifier_report: dict[str, Any] | None) -> list[dict[str, Any]
                 "status": status,
                 "accuracy": _round_or_none(classification.get("accuracy")),
                 "macro_f1": _round_or_none(metrics.get("macro_f1")),
+                "negative_log_loss": _round_or_none(probability.get("negative_log_loss")),
+                "ece": _round_or_none(probability.get("expected_calibration_error")),
+                "abstention_curve": probability.get("abstention_curve", []),
             }
         )
     return rows

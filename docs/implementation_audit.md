@@ -212,11 +212,13 @@ Probability-quality metrics are now reported for probabilistic baselines:
 | Model | Log loss | Multiclass Brier | ECE |
 |---|---:|---:|---:|
 | TF-IDF logistic regression | `1.016433` | `0.614711` | `0.280567` |
-| TF-IDF linear SVM | `1.044926` | `0.631067` | `0.171423` |
+| TF-IDF linear SVM | `1.044926` | `0.631067` | `0.356597` |
 | LightGBM text/context | `0.556703` | `0.358804` | `0.305041` |
 | PyTorch TF-IDF MLP | `0.971820` | `0.751118` | `0.553442` |
 
 These calibration-style metrics are smoke-test outputs only; they are not a calibrated probability policy. Real abstention thresholds still require validation folds and enough labeled events.
+
+Each probabilistic model also writes an abstention curve over fixed confidence thresholds. The curve reports retained rows, abstained rows, coverage, accuracy, macro F1, and retained label mix. On the fixture holdout this is only a visibility check for the reporting path; threshold promotion still requires a real validation set.
 
 Additional model reports:
 

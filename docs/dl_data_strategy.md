@@ -91,7 +91,7 @@ The repo also writes visible ML/DL smoke reports during the fixture pipeline:
 - `reports/lightgbm_baseline_report.json`
 - `reports/neural_baseline_report.json`
 
-The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. Probabilistic baselines report log loss, multiclass Brier score, and expected calibration error. The neural report is a PyTorch MLP over TF-IDF/context features. It proves the deterministic training/evaluation/report path works; it is not a substitute for FinBERT, DeBERTa, or a human-labeled validation set.
+The classifier report includes naive, rules, TF-IDF logistic regression, TF-IDF linear SVM, optional LightGBM, and optional PyTorch TF-IDF MLP rows. Probabilistic baselines report log loss, multiclass Brier score, expected calibration error, and confidence-threshold abstention diagnostics. The neural report is a PyTorch MLP over TF-IDF/context features. It proves the deterministic training/evaluation/report path works; it is not a substitute for FinBERT, DeBERTa, or a human-labeled validation set.
 
 ## DL Readiness Gate
 

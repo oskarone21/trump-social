@@ -27,6 +27,7 @@ def test_interpretation_report_marks_fixture_results_not_research_ready() -> Non
     assert payload["readiness_gates"]["licensed_market_data_loaded"] is False
     assert payload["readiness_gates"]["human_label_minimum_met"] is False
     assert payload["best_fixture_model"]["model"] == "TF-IDF logistic regression"
+    assert payload["best_fixture_model"]["negative_log_loss"] == 1.0
 
 
 def test_interpretation_markdown_contains_model_and_gate_tables() -> None:
@@ -40,7 +41,7 @@ def test_interpretation_markdown_contains_model_and_gate_tables() -> None:
 
     markdown = render_interpretation_markdown(payload)
 
-    assert "| Model | Type | Status | Accuracy | Macro F1 |" in markdown
+    assert "| Model | Type | Status | Accuracy | Macro F1 | Log Loss | ECE |" in markdown
     assert "| licensed_market_data_loaded | False |" in markdown
     assert "FinBERT/DeBERTa fine-tuning is not methodologically ready." in markdown
 
@@ -49,4 +50,9 @@ def _metric(macro_f1: float, accuracy: float) -> dict:
     return {
         "macro_f1": macro_f1,
         "classification_report": {"accuracy": accuracy},
+        "probability_metrics": {
+            "negative_log_loss": 1.0,
+            "expected_calibration_error": 0.2,
+            "abstention_curve": [],
+        },
     }

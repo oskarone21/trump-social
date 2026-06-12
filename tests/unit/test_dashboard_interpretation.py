@@ -26,6 +26,8 @@ def test_dashboard_renders_model_comparison_when_interpretation_is_available(tmp
                     "status": "trained",
                     "accuracy": 0.5,
                     "macro_f1": 0.5,
+                    "negative_log_loss": 1.2,
+                    "ece": 0.25,
                 }
             ],
             "readiness_gates": {"licensed_market_data_loaded": False},
@@ -47,6 +49,8 @@ def test_dashboard_renders_model_comparison_when_interpretation_is_available(tmp
     html = output.read_text()
     assert "Model Comparison" in html
     assert "TF-IDF logistic regression" in html
+    assert "Log Loss" in html
+    assert "ECE" in html
     assert "licensed_market_data_loaded" in html
 
 

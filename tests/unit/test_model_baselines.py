@@ -24,8 +24,10 @@ def test_tradeability_baselines_write_ml_and_dl_reports(tmp_path) -> None:
 
     assert report["tfidf_logreg"]["macro_f1"] >= 0.0
     assert report["tfidf_logreg"]["probability_metrics"]["negative_log_loss"] >= 0.0
+    assert report["tfidf_logreg"]["probability_metrics"]["abstention_curve"]
     assert report["tfidf_linear_svm"]["macro_f1"] >= 0.0
     assert report["tfidf_linear_svm"]["probability_metrics"]["negative_log_loss"] >= 0.0
+    assert report["tfidf_linear_svm"]["probability_metrics"]["abstention_curve"]
     assert report["lightgbm"]["status"] in {"trained", "skipped"}
     assert report["neural_tfidf_mlp"]["status"] in {"trained", "skipped"}
     assert (tmp_path / "reports" / "classifier_baseline_report.json").exists()
