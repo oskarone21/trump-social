@@ -361,6 +361,7 @@ Event study:
 - Tradeability label counts
 - 5m/15m/30m delta count, mean, median, standard deviation, p10, p90
 - 5m/15m/30m MFE, MAE, realised range, and realised-volatility target summaries
+- Event cluster count, isolated-event count, burst-event count, and cluster-size counts
 - Segment-level mean 30m ticks, realised range, and realised volatility
 
 Classifier:
@@ -454,6 +455,7 @@ Current fixture data passes these checks:
 - All internal timestamps are timezone-aware UTC.
 - Post targets align to the first market bar after `received_at_utc`.
 - Event targets include 5m/15m/30m deltas, directions, MFE, MAE, realised range, realised volatility, and market-whipsaw labels.
+- Event clustering marks overlapping 5m/15m/30m target windows, isolated events, and burst events.
 - Keyword matching uses word boundaries for single-token keywords, which prevents false matches like `ai` inside `again`.
 - Real archive smoke ingest also records empty-text/media-only counts, which must be excluded or separately handled for text-only DL training.
 - Archive freshness report records HTTP metadata and local dedupe/freshness diagnostics.

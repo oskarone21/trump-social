@@ -51,7 +51,50 @@ def build_event_dataset(
         merged = post.model_dump(mode="json")
         merged.update(event_record.model_dump(mode="json"))
         records.append(merged)
-    return EventBuildResult(events=pd.DataFrame(records), skipped_posts=skipped)
+    return EventBuildResult(
+        events=_add_event_clusters(pd.DataFrame(records), config),
+        skipped_posts=skipped,
+    )
+
+
+def _add_event_clusters(events: pd.DataFrame, config: EngineConfig) -> pd.DataFrame:
+    if events.empty:
+        return events
+    max_horizon = max(config.windows.impact_horizons_minutes)
+    overlap_gap = pd.Timedelta(minutes=max_horizon)
+    clustered = events.copy()
+    clustered["_received_ts"] = pd.to_datetime(clustered["received_at_utc"], utc=True)
+    clustered = clustered.sort_values(["_received_ts", "post_id"]).reset_index(drop=True)
+    previous_gap = clustered["_received_ts"].diff()
+    next_gap = clustered["_received_ts"].shift(-1) - clustered["_received_ts"]
+    cluster_numbers = []
+    current_cluster = 0
+    for gap in previous_gap:
+        if pd.isna(gap) or gap > overlap_gap:
+            current_cluster += 1
+        cluster_numbers.append(current_cluster)
+    clustered["event_cluster_number"] = cluster_numbers
+    clustered["minutes_since_previous_event"] = previous_gap.dt.total_seconds().div(60).round(4)
+    clustered["minutes_until_next_event"] = next_gap.dt.total_seconds().div(60).round(4)
+    clustered["overlaps_prior_event_window"] = previous_gap.le(overlap_gap).fillna(False)
+    clustered["overlaps_next_event_window"] = next_gap.le(overlap_gap).fillna(False)
+    clustered["event_cluster_size"] = clustered.groupby("event_cluster_number")[
+        "event_id"
+    ].transform("size")
+    clustered["event_cluster_position"] = clustered.groupby("event_cluster_number").cumcount()
+    cluster_ids = {
+        cluster_number: stable_hash(
+            "cluster|"
+            f"{group.iloc[0]['event_id']}|"
+            f"{group.iloc[0]['received_at_utc']}|"
+            f"{max_horizon}"
+        )[:16]
+        for cluster_number, group in clustered.groupby("event_cluster_number", sort=False)
+    }
+    clustered["event_cluster_id"] = clustered["event_cluster_number"].map(cluster_ids)
+    clustered["is_isolated_event"] = clustered["event_cluster_size"].eq(1)
+    clustered["is_burst_event"] = clustered["event_cluster_size"].gt(1)
+    return clustered.drop(columns=["_received_ts"])
 
 
 def _horizon_values(

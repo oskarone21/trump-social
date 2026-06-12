@@ -34,6 +34,7 @@ def build_event_study_report(events: pd.DataFrame) -> dict[str, Any]:
         "tradeability_counts": events["tradeability_label"].value_counts().to_dict(),
         "horizons": horizons,
         "target_summary": _target_summary(events),
+        "cluster_summary": _cluster_summary(events),
         "segments": _segment_summary(events),
     }
 
@@ -60,6 +61,22 @@ def _segment_summary(events: pd.DataFrame) -> dict[str, Any]:
             ),
         }
     return output
+
+
+def _cluster_summary(events: pd.DataFrame) -> dict[str, Any]:
+    if "event_cluster_id" not in events:
+        return {}
+    cluster_sizes = events.groupby("event_cluster_id")["event_id"].count()
+    return {
+        "cluster_count": int(cluster_sizes.count()),
+        "isolated_event_count": int(events["is_isolated_event"].sum()),
+        "burst_event_count": int(events["is_burst_event"].sum()),
+        "max_cluster_size": int(cluster_sizes.max()) if len(cluster_sizes) else 0,
+        "cluster_size_counts": {
+            str(size): int(count)
+            for size, count in cluster_sizes.value_counts().sort_index().items()
+        },
+    }
 
 
 def _summary_series(series: pd.Series) -> dict[str, Any]:

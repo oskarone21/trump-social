@@ -136,8 +136,9 @@ Acceptance:
 - [x] Generate 5m/15m/30m targets.
 - [x] Generate MFE/MAE/range/realized-volatility targets.
 - [x] Generate market-whipsaw labels.
-- [ ] Implement event clustering and de-overlap.
-- [ ] Build isolated-post and burst-post subsets.
+- [x] Implement event clustering and de-overlap metadata.
+- [x] Add isolated-post and burst-post flags.
+- [ ] Materialize isolated-post and burst-post subset files for real-data analysis.
 - [ ] Add macro-event blackout flags.
 - [ ] Add matched control windows by:
   - [ ] day of week
