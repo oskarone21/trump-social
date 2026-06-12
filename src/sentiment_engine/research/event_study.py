@@ -5,6 +5,13 @@ from typing import Any
 import pandas as pd
 
 HORIZON_COLUMNS = ["nq_delta_5m_ticks", "nq_delta_15m_ticks", "nq_delta_30m_ticks"]
+TARGET_PREFIXES = [
+    "nq_delta",
+    "realised_range",
+    "realised_volatility",
+    "max_favourable_excursion",
+    "max_adverse_excursion",
+]
 
 
 def build_event_study_report(events: pd.DataFrame) -> dict[str, Any]:
@@ -26,8 +33,19 @@ def build_event_study_report(events: pd.DataFrame) -> dict[str, Any]:
         "market_whipsaw_count": int(events["market_whipsaw_flag"].sum()),
         "tradeability_counts": events["tradeability_label"].value_counts().to_dict(),
         "horizons": horizons,
+        "target_summary": _target_summary(events),
         "segments": _segment_summary(events),
     }
+
+
+def _target_summary(events: pd.DataFrame) -> dict[str, Any]:
+    output = {}
+    for prefix in TARGET_PREFIXES:
+        columns = [column for column in events.columns if column.startswith(f"{prefix}_")]
+        output[prefix] = {
+            column: _summary_series(events[column].astype(float)) for column in sorted(columns)
+        }
+    return output
 
 
 def _segment_summary(events: pd.DataFrame) -> dict[str, Any]:
@@ -37,5 +55,18 @@ def _segment_summary(events: pd.DataFrame) -> dict[str, Any]:
             "count": int(len(group)),
             "mean_30m_ticks": round(float(group["nq_delta_30m_ticks"].mean()), 4),
             "mean_range_30m_ticks": round(float(group["realised_range_30m_ticks"].mean()), 4),
+            "mean_realised_volatility_30m_ticks": round(
+                float(group["realised_volatility_30m_ticks"].mean()), 4
+            ),
         }
     return output
+
+
+def _summary_series(series: pd.Series) -> dict[str, Any]:
+    return {
+        "count": int(series.count()),
+        "mean_ticks": round(float(series.mean()), 4),
+        "median_ticks": round(float(series.median()), 4),
+        "p10_ticks": round(float(series.quantile(0.10)), 4),
+        "p90_ticks": round(float(series.quantile(0.90)), 4),
+    }

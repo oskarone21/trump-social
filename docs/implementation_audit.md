@@ -70,7 +70,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-27 passed, 1 warning
+28 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -360,7 +360,8 @@ Event study:
 - Market-whipsaw count
 - Tradeability label counts
 - 5m/15m/30m delta count, mean, median, standard deviation, p10, p90
-- Segment-level mean 30m ticks and realised range
+- 5m/15m/30m MFE, MAE, realised range, and realised-volatility target summaries
+- Segment-level mean 30m ticks, realised range, and realised volatility
 
 Classifier:
 
@@ -452,6 +453,7 @@ Current fixture data passes these checks:
 - 0 skipped event-build posts.
 - All internal timestamps are timezone-aware UTC.
 - Post targets align to the first market bar after `received_at_utc`.
+- Event targets include 5m/15m/30m deltas, directions, MFE, MAE, realised range, realised volatility, and market-whipsaw labels.
 - Keyword matching uses word boundaries for single-token keywords, which prevents false matches like `ai` inside `again`.
 - Real archive smoke ingest also records empty-text/media-only counts, which must be excluded or separately handled for text-only DL training.
 - Archive freshness report records HTTP metadata and local dedupe/freshness diagnostics.

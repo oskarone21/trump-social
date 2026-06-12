@@ -133,9 +133,9 @@ Acceptance:
 - [ ] Join all Trump posts to first valid NQ bar at or after `received_at_utc`.
 - [x] Implement archive-to-market event builder for processed posts and canonical bars.
 - [ ] Retain feed latency.
-- [ ] Generate 5m/15m/30m targets.
-- [ ] Generate MFE/MAE/range/realized-volatility targets.
-- [ ] Generate market-whipsaw labels.
+- [x] Generate 5m/15m/30m targets.
+- [x] Generate MFE/MAE/range/realized-volatility targets.
+- [x] Generate market-whipsaw labels.
 - [ ] Implement event clustering and de-overlap.
 - [ ] Build isolated-post and burst-post subsets.
 - [ ] Add macro-event blackout flags.
@@ -401,5 +401,5 @@ Latest known verification:
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Full fixture pipeline: completed.
-- Tests: 27 passed.
+- Tests: 28 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

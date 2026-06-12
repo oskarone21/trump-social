@@ -22,6 +22,9 @@ def test_label_queue_excludes_post_event_target_columns() -> None:
 
     assert len(queue) == 3
     assert "nq_delta_30m_ticks" not in queue.columns
+    assert "max_favourable_excursion_30m_ticks" not in queue.columns
+    assert "max_adverse_excursion_30m_ticks" not in queue.columns
+    assert "realised_volatility_30m_ticks" not in queue.columns
     assert "market_whipsaw_flag" not in queue.columns
     assert queue["human_sentiment_label"].eq("").all()
     assert queue["rule_sentiment_label"].ne("").all()

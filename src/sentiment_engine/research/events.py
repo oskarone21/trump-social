@@ -21,7 +21,11 @@ class EventBuildResult:
 def build_event_dataset(
     posts: list[PostRecord], market_bars: pd.DataFrame, config: EngineConfig
 ) -> EventBuildResult:
-    valid_bars = market_bars[market_bars["is_valid_bar"]].sort_values("ts_open_utc").reset_index(drop=True)
+    valid_bars = (
+        market_bars[market_bars["is_valid_bar"]]
+        .sort_values("ts_open_utc")
+        .reset_index(drop=True)
+    )
     records: list[dict[str, object]] = []
     skipped: list[dict[str, str]] = []
     for post in posts:
@@ -65,7 +69,13 @@ def _horizon_values(
         values[f"nq_delta_{horizon}m_ticks"] = delta_ticks
         values[f"nq_direction_{horizon}m"] = _direction(delta_ticks)
         window = bars[(bars["ts_open_utc"] >= event_ts) & (bars["ts_open_utc"] <= target_ts)]
+        mfe_ticks, mae_ticks = _excursion_ticks(window, base_price, tick_size)
+        values[f"max_favourable_excursion_{horizon}m_ticks"] = mfe_ticks
+        values[f"max_adverse_excursion_{horizon}m_ticks"] = mae_ticks
         values[f"realised_range_{horizon}m_ticks"] = _range_ticks(window, tick_size)
+        values[f"realised_volatility_{horizon}m_ticks"] = _realised_volatility_ticks(
+            window, tick_size
+        )
 
     full_window = bars[
         (bars["ts_open_utc"] >= event_ts)
@@ -76,11 +86,7 @@ def _horizon_values(
     ]
     if full_window.empty:
         return None
-    mfe_ticks = round((float(full_window["high"].max()) - base_price) / tick_size, 4)
-    mae_ticks = round((base_price - float(full_window["low"].min())) / tick_size, 4)
     whipsaw = _market_whipsaw_flag(full_window, base_price, tick_size, config)
-    values["max_favourable_excursion_30m_ticks"] = max(mfe_ticks, 0.0)
-    values["max_adverse_excursion_30m_ticks"] = max(mae_ticks, 0.0)
     values["market_whipsaw_flag"] = whipsaw
     values["tradeability_label"] = _tradeability(values, whipsaw)
     return values
@@ -100,6 +106,23 @@ def _range_ticks(window: pd.DataFrame, tick_size: float) -> float:
     return round((float(window["high"].max()) - float(window["low"].min())) / tick_size, 4)
 
 
+def _excursion_ticks(
+    window: pd.DataFrame, base_price: float, tick_size: float
+) -> tuple[float, float]:
+    if window.empty:
+        return 0.0, 0.0
+    mfe = max((float(window["high"].max()) - base_price) / tick_size, 0.0)
+    mae = max((base_price - float(window["low"].min())) / tick_size, 0.0)
+    return round(mfe, 4), round(mae, 4)
+
+
+def _realised_volatility_ticks(window: pd.DataFrame, tick_size: float) -> float:
+    if len(window) < 2:
+        return 0.0
+    close_changes_ticks = window["close"].astype(float).diff().dropna() / tick_size
+    return round(float((close_changes_ticks.pow(2).sum()) ** 0.5), 4)
+
+
 def _market_whipsaw_flag(
     window: pd.DataFrame, base_price: float, tick_size: float, config: EngineConfig
 ) -> bool:
@@ -114,11 +137,13 @@ def _market_whipsaw_flag(
     if initial_direction == "up":
         extreme_index = window["high"].idxmax()
         subsequent = window.loc[extreme_index:]
-        reversal = (float(window.loc[extreme_index, "high"]) - float(subsequent["low"].min())) / tick_size
+        extreme_high = float(window.loc[extreme_index, "high"])
+        reversal = (extreme_high - float(subsequent["low"].min())) / tick_size
     else:
         extreme_index = window["low"].idxmin()
         subsequent = window.loc[extreme_index:]
-        reversal = (float(subsequent["high"].max()) - float(window.loc[extreme_index, "low"])) / tick_size
+        extreme_low = float(window.loc[extreme_index, "low"])
+        reversal = (float(subsequent["high"].max()) - extreme_low) / tick_size
     reversal_threshold = max(0.65 * initial_move, config.thresholds.whipsaw_reversal_ticks)
     return reversal >= reversal_threshold
 
@@ -126,7 +151,9 @@ def _market_whipsaw_flag(
 def _tradeability(values: dict[str, object], whipsaw: bool) -> str:
     if whipsaw:
         return "no_trade_whipsaw"
-    if float(values["realised_range_30m_ticks"]) >= 35 and abs(float(values["nq_delta_30m_ticks"])) < 12:
+    range_30m = float(values["realised_range_30m_ticks"])
+    delta_30m = abs(float(values["nq_delta_30m_ticks"]))
+    if range_30m >= 35 and delta_30m < 12:
         return "volatility_only"
     if abs(float(values["nq_delta_15m_ticks"])) >= 8:
         return "tradeable_directional"

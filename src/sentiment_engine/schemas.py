@@ -22,7 +22,9 @@ SentimentLabel = Literal[
 ]
 DirectionSignal = Literal["BULLISH", "BEARISH", "NEUTRAL", "NO_TRADE"]
 WhipsawRiskLevel = Literal["NONE", "WATCH", "SOFT_RISK", "HARD_KILL"]
-KillSwitchAction = Literal["ALLOW", "BLOCK_NEW_ENTRIES", "REDUCE_SIZE", "FLATTEN_OPTIONAL", "HARD_FLAT"]
+KillSwitchAction = Literal[
+    "ALLOW", "BLOCK_NEW_ENTRIES", "REDUCE_SIZE", "FLATTEN_OPTIONAL", "HARD_FLAT"
+]
 
 
 class PostRecord(BaseModel):
@@ -117,11 +119,18 @@ class EventTargetRecord(BaseModel):
     nq_direction_5m: Direction
     nq_direction_15m: Direction
     nq_direction_30m: Direction
+    max_favourable_excursion_5m_ticks: float
+    max_favourable_excursion_15m_ticks: float
     max_favourable_excursion_30m_ticks: float
+    max_adverse_excursion_5m_ticks: float
+    max_adverse_excursion_15m_ticks: float
     max_adverse_excursion_30m_ticks: float
     realised_range_5m_ticks: float
     realised_range_15m_ticks: float
     realised_range_30m_ticks: float
+    realised_volatility_5m_ticks: float
+    realised_volatility_15m_ticks: float
+    realised_volatility_30m_ticks: float
     market_whipsaw_flag: bool
     tradeability_label: TradeabilityLabel
 
