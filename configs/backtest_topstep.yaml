@@ -1,0 +1,8 @@
+account:
+  name: fixture_topstep_style_mnq
+  starting_balance_usd: 50000.0
+  daily_loss_limit_usd: 1000.0
+  maximum_loss_limit_usd: 2000.0
+  trailing_drawdown_usd: 1500.0
+  max_contracts: 5
+  flatten_on_daily_loss_breach: true

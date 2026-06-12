@@ -1,0 +1,9 @@
+extends: configs/research.yaml
+project:
+  mode: live_advisory
+
+live:
+  provider: fixture
+  advisory_only: true
+  allow_live_flatten: false
+  metrics_enabled: true

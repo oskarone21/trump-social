@@ -1,0 +1,6 @@
+model:
+  seed: 42
+  temporal_test_fraction: 0.35
+  min_train_rows: 4
+  tfidf_max_features: 250
+  calibration_bins: 5

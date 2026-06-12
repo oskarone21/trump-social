@@ -1,0 +1,73 @@
+project:
+  mode: research
+  timezone_internal: UTC
+  seed: 42
+
+paths:
+  posts_fixture: data/fixtures/posts_stiles_sample.json
+  market_fixture: data/fixtures/nq_1m_sample.csv
+  macro_calendar_fixture: data/fixtures/macro_calendar.csv
+  trades_fixture: data/fixtures/baseline_trades.csv
+  processed_dir: data/processed
+  report_dir: reports
+  model_dir: models
+
+sources:
+  posts:
+    fixture:
+      provider: local_fixture
+      freshness: deterministic
+    stiles_archive:
+      provider: github_archive
+      historical_only: true
+      repository_url: https://github.com/stiles/trump-truth-social-archive
+      latest_archive_url: https://ix.cnn.io/data/truth-social/truth_archive.json
+    live_provider:
+      provider: external
+      requires_env_key: TRUTH_SOCIAL_PROVIDER_API_KEY
+      enabled: false
+  market:
+    csv:
+      provider: local_csv
+      enabled: true
+    broker_or_vendor:
+      provider: external
+      requires_env_key: MARKET_DATA_API_KEY
+      enabled: false
+
+instruments:
+  signal_symbol: NQ
+  execution_symbol: MNQ
+  tick_size: 0.25
+  nq_tick_value_usd: 5.0
+  mnq_tick_value_usd: 0.5
+
+windows:
+  impact_horizons_minutes: [5, 15, 30]
+  contradiction_window_minutes: 60
+  whipsaw_evaluation_window_minutes: 30
+  macro_blackout_before_minutes: 15
+  macro_blackout_after_minutes: 15
+
+thresholds:
+  min_direction_confidence: 0.58
+  min_topic_confidence: 0.60
+  soft_whipsaw_threshold: 0.55
+  hard_whipsaw_threshold: 0.75
+  stale_feed_seconds: 10
+  stale_market_data_seconds: 10
+  whipsaw_initial_move_ticks: 20
+  whipsaw_reversal_ticks: 15
+
+live_actions:
+  default_mode: live_advisory
+  allow_live_flatten: false
+  soft_risk_action: REDUCE_SIZE
+  hard_risk_action: BLOCK_NEW_ENTRIES
+  hard_risk_ttl_seconds: 3600
+
+backtest:
+  commission_per_contract_usd: 0.74
+  slippage_ticks_per_side: 1
+  latency_seconds: 2
+  account_rules_config: configs/backtest_topstep.yaml

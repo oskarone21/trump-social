@@ -1,0 +1,7 @@
+whipsaw:
+  text_weight: 0.30
+  same_topic_weight: 0.20
+  burst_weight: 0.20
+  direction_flip_weight: 0.20
+  volatility_weight: 0.10
+  explanation_limit: 3

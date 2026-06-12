@@ -1,0 +1,4 @@
+impact:
+  horizons_minutes: [5, 15, 30]
+  direction_flat_threshold_ticks: 8
+  min_validation_rows: 4
