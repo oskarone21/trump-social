@@ -8,6 +8,7 @@ from sentiment_engine.backtest.simulator import run_kill_switch_backtest
 from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market_csv
 from sentiment_engine.ingestion.posts_fixture import audit_posts, load_fixture_posts, posts_to_frame
 from sentiment_engine.models.baselines import build_labeled_events, train_tradeability_baselines
+from sentiment_engine.models.tuning import tune_whipsaw_parameters
 from sentiment_engine.models.whipsaw import build_whipsaw_report, score_whipsaw_events
 from sentiment_engine.live.dashboard import build_dashboard
 from sentiment_engine.live.signal_engine import latest_signal_from_scores
@@ -27,6 +28,7 @@ def main(argv: list[str] | None = None) -> None:
     subparsers.add_parser("label-assist")
     subparsers.add_parser("train-classifier")
     subparsers.add_parser("score-whipsaw")
+    subparsers.add_parser("tune-whipsaw")
     subparsers.add_parser("backtest")
     subparsers.add_parser("dashboard")
     subparsers.add_parser("latest-signal")
@@ -49,6 +51,8 @@ def main(argv: list[str] | None = None) -> None:
         _train_classifier(config, args.config)
     elif args.command == "score-whipsaw":
         _score_whipsaw(config)
+    elif args.command == "tune-whipsaw":
+        _tune_whipsaw(config)
     elif args.command == "backtest":
         _backtest(config)
     elif args.command == "dashboard":
@@ -144,6 +148,20 @@ def _backtest(config) -> None:
     )
 
 
+def _tune_whipsaw(config) -> None:
+    scored = _read_or_build_whipsaw_scores(config)
+    report = tune_whipsaw_parameters(
+        scored,
+        report_path=config.paths.report_dir / "whipsaw_tuning_report.json",
+        seed=config.project.seed,
+    )
+    print(
+        "whipsaw tuning complete: "
+        f"trials={report['n_trials']}, holdout_soft_recall="
+        f"{report['holdout_metrics_best']['soft_risk']['recall']}"
+    )
+
+
 def _dashboard(config) -> None:
     scored = _read_or_build_whipsaw_scores(config)
     signal = latest_signal_from_scores(scored, config)
@@ -174,6 +192,7 @@ def _run_full(config, config_path: str) -> None:
     _label_assist(config)
     _train_classifier(config, config_path)
     _score_whipsaw(config)
+    _tune_whipsaw(config)
     _backtest(config)
     _dashboard(config)
     print("full pipeline completed")

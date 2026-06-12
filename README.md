@@ -36,12 +36,15 @@ PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/researc
 PYTHONPATH=src python -m sentiment_engine build-events --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine train-classifier --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine score-whipsaw --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine tune-whipsaw --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine backtest --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine dashboard --config configs/research.yaml
 python scripts/run_full_pipeline.py configs/research.yaml
 ```
 
 The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, and the kill-switch backtest audit.
+
+For a plain-English status of implemented models, results, metrics, tuned parameters, Optuna, and data-cleanliness checks, see [docs/implementation_audit.md](docs/implementation_audit.md).
 
 ## API
 
