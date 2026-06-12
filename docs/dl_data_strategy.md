@@ -44,6 +44,8 @@ The adapter also supports local JSON/CSV/parquet files for repeatable tests.
 
 The post audit records empty-text and media-only rows. Those rows are valid archive records, but they should not be blindly used for text-only DL training.
 
+Full archive verification on 2026-06-12 ingested 33,899 valid rows with 0 duplicate post IDs. The audit found 6,392 empty-text rows and 5,830 media-only rows, so the training dataset must filter text-empty rows or route them through separate media/link features.
+
 The repo also writes visible ML/DL smoke reports during the fixture pipeline:
 
 - `reports/classifier_baseline_report.json`

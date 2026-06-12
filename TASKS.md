@@ -11,6 +11,7 @@ Implemented:
 - Local fixture pipeline for posts, NQ 1-minute bars, labels, event targets, whipsaw scoring, Optuna tuning, backtest, dashboard, and signal contract.
 - CNN `ix.cnn.io` Truth Social archive adapter via `ingest-archive`.
 - Real archive smoke ingest verified on 2026-06-12 with 25 recent posts.
+- Full CNN archive ingest verified on 2026-06-12 with 33,899 posts.
 - TF-IDF + logistic-regression baseline.
 - LightGBM classifier smoke baseline when optional `ml` dependencies are installed.
 - PyTorch TF-IDF MLP smoke baseline when optional `dl` dependencies are installed.
@@ -77,7 +78,7 @@ The full engine is done only when all of these are true:
 - [x] Normalize records into `PostRecord`.
 - [x] Count duplicates, empty-text rows, and media-only rows.
 - [x] Smoke ingest live CNN parquet archive.
-- [ ] Ingest the full CNN archive into `data/raw/posts/` or configured object storage.
+- [x] Ingest the full CNN archive into the configured local processed path.
 - [ ] Add partitioned output by source/date.
 - [ ] Add content-hash and post-id dedupe report for the full archive.
 - [ ] Add archive freshness monitor using HTTP `Last-Modified`, `ETag`, and max post timestamp.
@@ -367,6 +368,7 @@ PYTHONPATH=src python -m pytest -q
 Latest known verification:
 
 - Archive smoke ingest: 25 rows, 25 valid, 0 duplicates, 4 empty-text/media-only.
+- Full archive ingest: 33,899 rows, 33,899 valid, 0 duplicates, 6,392 empty-text rows, 5,830 media-only rows.
 - Full fixture pipeline: completed.
 - Tests: 10 passed.
 - Browser dashboard check via localhost: title rendered, backtest metric present, 8 event rows.

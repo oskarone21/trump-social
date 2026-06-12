@@ -85,6 +85,25 @@ Result:
 
 This proves the current archive schema can be normalized by the repo. It does not prove market-label quality or live-trading suitability.
 
+## Full Archive Backfill Test
+
+Command:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-archive --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
+```
+
+Result:
+
+- 33,899 archive posts ingested.
+- 33,899 valid rows.
+- 0 duplicate post IDs.
+- 6,392 empty-text rows.
+- 5,830 media-only rows.
+- Date range: `2022-02-14T15:54:32.528000Z` to `2026-06-12T13:59:27.160000Z`.
+
+This verifies the post backfill path at full archive scale. It still does not solve the required NQ/MNQ market-data join or human-label problem.
+
 ## Classifier Results
 
 Source report: `reports/classifier_baseline_report.json`.

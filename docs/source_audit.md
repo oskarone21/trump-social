@@ -11,7 +11,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 | Source | Verified status | Use in this repo |
 |---|---|---|
 | `stiles/trump-truth-social-archive` | The README states the GitHub Actions workflow was disabled on 2025-10-26 and that the repo output will no longer be updated there. It also points to an archive updated every five minutes at `https://ix.cnn.io/data/truth-social/truth_archive.json`, with `.csv` and `.parquet` variants. | Historical/backfill adapter only. Never treated as the sole live source. |
-| CNN `ix.cnn.io` Truth archive | Verified by local HEAD request on 2026-06-12: JSON and parquet endpoints returned HTTP 200, last modified 2026-06-12. JSON was about 18.5 MB; parquet was about 6.2 MB. | Implemented as the preferred historical/backfill adapter via `ingest-archive`. |
+| CNN `ix.cnn.io` Truth archive | Verified by local HEAD request on 2026-06-12: JSON and parquet endpoints returned HTTP 200, last modified 2026-06-12. Full parquet ingest on 2026-06-12 loaded 33,899 valid rows with 0 duplicate post IDs. | Implemented as the preferred historical/backfill adapter via `ingest-archive`. |
 | `kashish-s/TruthSocial_2024ElectionInitiative` | The README describes a Kaggle-hosted election dataset with posts from February 2022 through October 2024. | Research-only candidate source after licensing and schema review. Not low-latency. |
 | Paid/live providers | No official stable public Truth Social trading-grade API is assumed. Provider terms, latency, schema, and permitted use must be verified before use. | Adapter interface, heartbeat checks, schema validation, and stale-feed safe mode. |
 | Local fixture adapter | Deterministic records owned by this repo. | Default CI/local execution path. |
@@ -31,6 +31,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 - Market bars crossing contract roll gaps, maintenance breaks, holidays, or invalid sessions are excluded from target calculation.
 - Dedupe is deterministic by `post_id` and `content_hash`.
 - Empty-text and media-only posts are counted explicitly because they are valid records but weak text-model training rows.
+- Latest full CNN archive ingest counted 6,392 empty-text rows and 5,830 media-only rows; text-only models must filter or separately encode them.
 - Feed latency is retained as `received_at_utc - created_at_utc`.
 - Real-provider credentials and secrets must come from the environment, never committed YAML.
 
