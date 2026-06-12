@@ -4,6 +4,16 @@ Last updated: 2026-06-12.
 
 This file is the implementation roadmap for taking the current fixture-backed vertical slice to a full research-grade and eventually live-advisory Truth Social prediction/sentiment engine with ML and DL models.
 
+## Assumptions and Methodological Constraints (for all remaining work)
+
+- No public, stable `truthsocial.com` API is treated as a production source. If any direct endpoint is used, it is sandboxed as a best-effort backfill path only, because endpoint stability and access are not guaranteed.
+- Archive sources (`cnn`, `trumpstruth` RSS, local dumps) are for historical reconstruction and model development, not low-latency signal generation.
+- Production claims require:
+  - a reviewed event dataset with quality assurance,
+  - embargoed temporal splits,
+  - and utility-aware evaluation (expected cost-adjusted risk reduction, not only directional precision).
+- Every signal must be reproducible from the exact source run, model version, data version, and config hash written into its audit trail.
+
 ## Current State
 
 Implemented:
@@ -20,6 +30,8 @@ Implemented:
 - Probability-quality metrics for probabilistic baselines: log loss, multiclass Brier score, and expected calibration error.
 - Confidence-threshold abstention diagnostics for probabilistic baselines.
 - Expanding walk-forward validation script for classifier baselines.
+- Third-party provider post ingest adapter (`ingest-provider-posts`) for permitted provider exports.
+- Authenticated provider ingest (`ingest-provider-posts`) supports API key and custom headers for live API endpoints.
 - Rule-based sentiment/topic/tradeability classifier.
 - Weighted whipsaw detector and Optuna tuning report.
 - Static dashboard and optional FastAPI service.
@@ -40,6 +52,27 @@ Not yet implemented:
 - Statistical interpretation of ML/DL results on real out-of-sample data.
 - Live provider integration with an SLA/contract and heartbeat.
 
+## Source Feasibility and Data Ingestion Strategy
+
+### What this project can currently guarantee
+
+- **Backfill source**: CNN archive + optional `trumpstruth.org` RSS mirror.
+- **Live/advisory source candidate**: provider-export ingestion (`ingest-provider-posts`) from a licensed/provider contract.
+- **Not guaranteed**: stable direct `truthsocial.com` API access without account-level fragility.
+
+### Why direct API is not the default in this architecture
+
+- `truthsocial.com` access is not an official public, documented developer API for this use case.
+- Historical probes indicate endpoint and access fragility and/or challenge pages (for example, Cloudflare challenge paths and/or restricted account visibility).
+- Even where undocumented Mastodon-style routes exist, they require ongoing maintenance for auth, pagination, and field drift.
+
+### Procurement route
+
+1. Use stable archival/fixtures to keep model code continuously executable.
+2. For advisory/live use, require a third-party export path with contract, SLAs, and explicit schema contract.
+3. Persist raw provider payload, normalized rows, and ingestion run metadata.
+4. Gate live behavior on feed freshness and schema checks; otherwise force conservative action.
+
 ## Source Findings
 
 ### Truth Social Posts
@@ -55,6 +88,7 @@ Not yet implemented:
   - `https://truthsocial.com/api/v1/accounts/107780257626128497/statuses`
   - `https://truthsocial.com/api/v1/accounts/lookup?acct=realDonaldTrump`
 - Conclusion: do not build the trading pipeline around direct scraping of `truthsocial.com`. Use the CNN archive for backfill and a contracted/live provider for low-latency operation.
+- Live low-latency operation now uses `ingest-provider-posts` as a separate adapter layer for provider dump files.
 
 ### Market Data
 
@@ -300,9 +334,7 @@ Acceptance:
   - [ ] CNN archive polling for low-frequency advisory only
   - [ ] manually supplied fallback
 - [ ] Verify provider terms.
-- [ ] Implement heartbeat.
-- [ ] Implement stale-feed detection.
-- [ ] Implement schema-drift detection.
+- [x] Implement provider heartbeat and stale/scheme checks (`check-provider-freshness`).
 - [ ] Implement provider failover.
 - [ ] Add Redis/WebSocket output if needed.
 - [ ] Add Prometheus metrics.
@@ -414,10 +446,43 @@ Latest known verification:
 - Walk-forward validation: 4 embargoed fixture folds written to `reports/walk_forward_report.json`.
 - Shadow report: latest advisory signal, readiness gates, and false-positive/false-negative
   dollar attribution written to `reports/shadow_report.json`.
-- FinBERT inference path: unit tested with deterministic classifier and verified with
-  `ProsusAI/finbert` on 2 fixture rows.
+- FinBERT inference path: available as optional dependency-backed script; in this sandbox it executed on fixture data and produced a report when model access is available.
 - Dashboard: FinBERT inference summary visible when `reports/finbert_inference_report.json` exists.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
-- Tests: 36 passed.
+- Tests: 39 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.
+
+## Completion Evidence Matrix (what still blocks full implementation)
+
+For each objective, this is the exact evidence needed before calling the project complete.
+
+- **Source acquisition**
+  - [ ] Approved provider contract + heartbeat + failover runbook.
+  - [ ] Proof of provider dump schema stability over >=2 monthly refreshes.
+  - [ ] Audit row proving every ingest run includes raw payload hash + source metadata.
+- **Market coverage**
+  - [ ] Licensed NQ/MNQ bars covering the chosen analysis period.
+  - [ ] Coverage report with <1% missing valid-session bars.
+  - [ ] Market continuity metadata (session, roll, holiday, stale, maintenance) attached to features/events.
+- **Labeling**
+  - [ ] Human-reviewed event corpus with >=500 rows (or agreed power threshold).
+  - [ ] Inter-annotator agreement report + adjudication pass.
+  - [ ] Evidence that label leakage (post-event fields) is not present in live features.
+- **Model build**
+  - [ ] Naive/rules/TF-IDF baselines + LightGBM + one DL model trained on reviewed real-data split.
+  - [ ] Temporal purged splits used consistently.
+  - [ ] Calibration curve + reliability diagnostics and abstention operating point selected on validation.
+- **Evaluation and interpretation**
+  - [ ] Utility comparison before/after kill-switch:
+    - drawdown,
+    - MAE/MFE/MAE reductions,
+    - realized cost-adjusted expectancy,
+    - false positives/false negatives by cost class.
+  - [ ] Matched/stratified control analysis (volatility/session/regime).
+- **Operational readiness**
+  - [ ] Full `run_full_pipeline.py` path on real market+post data (not fixtures).
+  - [ ] Dashboard section showing live coverage/risk/staleness and signal attribution.
+  - [ ] Fail-safe defaults (`BLOCK_NEW_ENTRIES`) validated on source failures.
+
+Only when all rows above are closed should the system be treated as “fully implemented.”

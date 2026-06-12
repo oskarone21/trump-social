@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import os
 from pathlib import Path
 
 from sentiment_engine.config import ensure_output_dirs, load_config
@@ -24,6 +25,23 @@ from sentiment_engine.ingestion.posts_cnn_archive import (
     archive_posts_to_frame,
     audit_cnn_archive_posts,
     load_cnn_archive_posts,
+)
+from sentiment_engine.ingestion.posts_trumpstruth_feed import (
+    TRUMPSTRUTH_PROVIDER_NAME,
+    TRUMPSTRUTH_SOURCE_NAME,
+    audit_trumpstruth_feed_posts,
+    trumpstruth_feed_posts_to_frame,
+    load_trumpstruth_feed_posts,
+)
+from sentiment_engine.ingestion.posts_external_provider import (
+    TRUTHSOCIAL_PROVIDER,
+    audit_truthsocial_provider_posts,
+    load_truthsocial_provider_posts,
+    truthsocial_provider_posts_to_frame,
+)
+from sentiment_engine.ingestion.provider_monitor import (
+    DEFAULT_STALE_AFTER_MINUTES,
+    build_provider_freshness_report,
 )
 from sentiment_engine.ingestion.posts_fixture import audit_posts, load_fixture_posts, posts_to_frame
 from sentiment_engine.labels.review import (
@@ -56,6 +74,41 @@ def main(argv: list[str] | None = None) -> None:
     archive_parser.add_argument("--url", default=None)
     archive_parser.add_argument("--limit", type=int, default=None)
     archive_parser.add_argument("--out", default=None)
+    provider_parser = subparsers.add_parser("ingest-provider-posts")
+    provider_parser.add_argument("--source", required=True)
+    provider_parser.add_argument("--provider-name", default=TRUTHSOCIAL_PROVIDER)
+    provider_parser.add_argument("--source-name", default="truthsocial_provider_dump")
+    provider_parser.add_argument("--api-key")
+    provider_parser.add_argument("--api-key-env")
+    provider_parser.add_argument(
+        "--api-key-header",
+        default="x-api-key",
+        help="Header name for --api-key or --api-key-env values.",
+    )
+    provider_parser.add_argument(
+        "--header",
+        action="append",
+        default=[],
+        help="Additional HTTP headers for remote provider sources (key:value).",
+    )
+    provider_parser.add_argument("--out", default=None)
+    provider_parser.add_argument("--limit", type=int, default=None)
+    trumpstruth_parser = subparsers.add_parser("ingest-trumpstruth-feed")
+    trumpstruth_parser.add_argument("--url", default="https://www.trumpstruth.org/feed")
+    trumpstruth_parser.add_argument(
+        "--start-date",
+        default=None,
+        help="Optional YYYY-MM-DD filter (start_date) for feed endpoint.",
+    )
+    trumpstruth_parser.add_argument(
+        "--end-date",
+        default=None,
+        help="Optional YYYY-MM-DD filter (end_date) for feed endpoint.",
+    )
+    trumpstruth_parser.add_argument("--provider-name", default=TRUMPSTRUTH_PROVIDER_NAME)
+    trumpstruth_parser.add_argument("--source-name", default=TRUMPSTRUTH_SOURCE_NAME)
+    trumpstruth_parser.add_argument("--out", default=None)
+    trumpstruth_parser.add_argument("--limit", type=int, default=None)
     freshness_parser = subparsers.add_parser("check-archive-freshness")
     freshness_parser.add_argument("--url", default=None)
     freshness_parser.add_argument("--posts", default=None)
@@ -63,6 +116,32 @@ def main(argv: list[str] | None = None) -> None:
         "--stale-after-minutes",
         type=int,
         default=STALE_AFTER_MINUTES_DEFAULT,
+    )
+    provider_freshness_parser = subparsers.add_parser("check-provider-freshness")
+    provider_freshness_parser.add_argument("--source", required=True)
+    provider_freshness_parser.add_argument("--source-name", default="truthsocial_provider_dump")
+    provider_freshness_parser.add_argument(
+        "--source-provider",
+        default=TRUTHSOCIAL_PROVIDER,
+    )
+    provider_freshness_parser.add_argument("--posts", default=None)
+    provider_freshness_parser.add_argument(
+        "--stale-after-minutes",
+        type=int,
+        default=DEFAULT_STALE_AFTER_MINUTES,
+    )
+    provider_freshness_parser.add_argument("--api-key")
+    provider_freshness_parser.add_argument("--api-key-env")
+    provider_freshness_parser.add_argument(
+        "--api-key-header",
+        default="x-api-key",
+        help="Header name for --api-key or --api-key-env values.",
+    )
+    provider_freshness_parser.add_argument(
+        "--header",
+        action="append",
+        default=[],
+        help="Additional HTTP headers for remote provider checks (key:value).",
     )
     subparsers.add_parser("ingest-market")
     market_file_parser = subparsers.add_parser("ingest-market-file")
@@ -117,8 +196,45 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_posts(config)
     elif args.command == "ingest-archive":
         _ingest_archive(config, args.url, args.limit, args.out)
+    elif args.command == "ingest-provider-posts":
+        _ingest_provider_posts(
+            config,
+            args.source,
+            args.provider_name,
+            args.source_name,
+            args.limit,
+            api_key=args.api_key,
+            api_key_env=args.api_key_env,
+            api_key_header=args.api_key_header,
+            headers=args.header,
+            out=args.out,
+        )
+    elif args.command == "ingest-trumpstruth-feed":
+        _ingest_trumpstruth_feed(
+            config,
+            args.url,
+            args.start_date,
+            args.end_date,
+            args.provider_name,
+            args.source_name,
+            args.limit,
+            args.out,
+        )
     elif args.command == "check-archive-freshness":
         _check_archive_freshness(config, args.url, args.posts, args.stale_after_minutes)
+    elif args.command == "check-provider-freshness":
+        _check_provider_freshness(
+            config,
+            args.source,
+            args.source_name,
+            args.source_provider,
+            args.posts,
+            args.stale_after_minutes,
+            args.api_key,
+            args.api_key_env,
+            args.api_key_header,
+            args.header,
+        )
     elif args.command == "ingest-market":
         _ingest_market(config)
     elif args.command == "ingest-market-file":
@@ -199,6 +315,127 @@ def _ingest_archive(config, url: str | None, limit: int | None, out: str | None)
     print(f"ingested {len(posts)} archive posts from {archive_url}")
 
 
+def _ingest_provider_posts(
+    config,
+    source: str,
+    provider_name: str,
+    source_name: str,
+    limit: int | None,
+    api_key: str | None,
+    api_key_env: str | None,
+    api_key_header: str,
+    headers: list[str],
+    out: str | None,
+) -> None:
+    live_cfg = config.sources["posts"].get("live_provider", {})
+    if not live_cfg.get("enabled", False):
+        print("warning: live_provider is disabled in config; ingesting anyway for backfill/testing")
+    provider_headers = _build_provider_headers(
+        extra_headers=headers,
+        api_key=api_key,
+        api_key_env=api_key_env or live_cfg.get("requires_env_key"),
+        api_key_header=api_key_header,
+        is_remote=source.startswith("http://") or source.startswith("https://"),
+    )
+    posts = load_truthsocial_provider_posts(
+        source,
+        source_name=source_name,
+        source_provider=provider_name,
+        limit=limit,
+        request_headers=provider_headers,
+    )
+    output_path = (
+        Path(out)
+        if out
+        else config.paths.processed_dir / f"{source_name.replace(' ', '_')}_posts.parquet"
+    )
+    write_dataframe(truthsocial_provider_posts_to_frame(posts), output_path)
+    write_json(
+        config.paths.report_dir / "provider_posts_ingestion_audit.json",
+        audit_truthsocial_provider_posts(
+            posts, source=source, source_provider=provider_name
+        ),
+    )
+    print(f"ingested {len(posts)} posts from provider {provider_name} source {source}")
+
+
+def _build_provider_headers(
+    *,
+    extra_headers: list[str],
+    api_key: str | None,
+    api_key_env: str | None,
+    api_key_header: str,
+    is_remote: bool,
+) -> dict[str, str]:
+    if not is_remote:
+        return {}
+    headers = {name: value for name, value in _parse_headers(extra_headers)}
+    header_name = (api_key_header or "x-api-key").strip()
+    if not header_name:
+        raise SystemExit("--api-key-header cannot be blank")
+    configured_key = (api_key or "").strip()
+    resolved_key = configured_key
+    if not resolved_key and api_key_env:
+        resolved_key = os.getenv(api_key_env, "").strip()
+        if not resolved_key:
+            print(
+                f"warning: API key env var {api_key_env} is not set; continuing without authentication header"
+            )
+    if resolved_key:
+        headers[header_name] = resolved_key
+    return headers
+
+
+def _parse_headers(entries: list[str]) -> list[tuple[str, str]]:
+    parsed: list[tuple[str, str]] = []
+    for entry in entries:
+        if ":" not in entry:
+            raise SystemExit(f"Invalid header format '{entry}'. Expected 'key:value'.")
+        name, value = entry.split(":", 1)
+        key = name.strip()
+        if not key:
+            raise SystemExit("Header key cannot be empty.")
+        parsed.append((key, value.strip()))
+    return parsed
+
+
+def _ingest_trumpstruth_feed(
+    config,
+    url: str,
+    start_date: str | None,
+    end_date: str | None,
+    provider_name: str,
+    source_name: str,
+    limit: int | None,
+    out: str | None,
+) -> None:
+    posts = load_trumpstruth_feed_posts(
+        url,
+        source_name=source_name,
+        source_provider=provider_name,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
+    output_path = (
+        Path(out)
+        if out
+        else config.paths.processed_dir / f"{source_name.replace(' ', '_')}_posts.parquet"
+    )
+    write_dataframe(trumpstruth_feed_posts_to_frame(posts), output_path)
+    write_json(
+        config.paths.report_dir / "trumpstruth_feed_ingestion_audit.json",
+        audit_trumpstruth_feed_posts(
+            posts,
+            source=url,
+        ),
+    )
+    print(
+        f"ingested {len(posts)} posts from {provider_name} feed {url} "
+        f"filters start_date={start_date or 'none'} end_date={end_date or 'none'}"
+    )
+
+
 def _check_archive_freshness(
     config, url: str | None, posts_path: str | None, stale_after_minutes: int
 ) -> None:
@@ -215,6 +452,48 @@ def _check_archive_freshness(
     print(
         "archive freshness checked: "
         f"http_ok={report['is_http_ok']}, stale={report['is_stale_by_post_time']}"
+    )
+
+
+def _check_provider_freshness(
+    config,
+    source: str,
+    source_name: str,
+    source_provider: str,
+    posts_path: str | None,
+    stale_after_minutes: int,
+    api_key: str | None,
+    api_key_env: str | None,
+    api_key_header: str,
+    headers: list[str],
+) -> None:
+    is_remote = source.startswith("http://") or source.startswith("https://")
+    provider_headers = _build_provider_headers(
+        extra_headers=headers,
+        api_key=api_key,
+        api_key_env=api_key_env or config.sources["posts"].get("live_provider", {}).get(
+            "requires_env_key"
+        ),
+        api_key_header=api_key_header,
+        is_remote=is_remote,
+    )
+    local_posts = Path(posts_path) if posts_path else None
+    report = build_provider_freshness_report(
+        source_url=source,
+        local_posts_path=local_posts,
+        stale_after_minutes=stale_after_minutes,
+        source_name=source_name,
+        source_provider=source_provider,
+        request_headers=provider_headers if is_remote else None,
+    )
+    write_json(
+        config.paths.report_dir / "provider_posts_freshness_report.json",
+        report,
+    )
+    print(
+        "provider freshness checked: "
+        f"http_ok={report['is_http_ok']}, stale={report['is_stale_by_post_time']}, "
+        f"schema_drift={report['local_provider'].get('schema_drift_detected')}"
     )
 
 
@@ -450,11 +729,15 @@ def _dashboard(config) -> None:
     interpretation_report = _read_optional_json_report(
         config.paths.report_dir / "research_interpretation.json"
     )
+    provider_freshness_report = _read_optional_json_report(
+        config.paths.report_dir / "provider_posts_freshness_report.json"
+    )
     output = build_dashboard(
         signal=signal,
         whipsaw_report=whipsaw_report,
         backtest_report=backtest_report,
         interpretation_report=interpretation_report,
+        provider_freshness_report=provider_freshness_report,
         scored_events=scored,
         output_path=config.paths.report_dir / "dashboard.html",
     )

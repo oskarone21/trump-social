@@ -13,6 +13,7 @@ The v1 posture is advisory and shadow-mode by default. It does not place orders 
 - Optional LightGBM and PyTorch TF-IDF MLP smoke baselines for visible ML/DL reports.
 - Whipsaw, contradiction, stale-feed, and kill-switch semantics.
 - Static dashboard output for visual verification.
+- Provider freshness auditing for operational gating.
 
 ## Quick Start
 
@@ -34,7 +35,39 @@ PYTHONPATH=src python -m sentiment_engine run-full --config configs/research.yam
 ```bash
 PYTHONPATH=src python -m sentiment_engine ingest-posts --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 100
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts --config configs/research.yaml --source data/fixtures/posts_truthsocial_provider_sample.json --source-name apify_truthsocial_dump --provider-name apify_truthsocial --limit 100
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts --config configs/research.yaml \
+  --source https://api.your-truthsocial-provider.com/v1/posts \
+  --provider-name truthsocial_api_vendor \
+  --source-name truthsocial_api \
+  --api-key "$YOUR_TRUTH_SOCIAL_PROVIDER_KEY" \
+  --api-key-header x-api-key \
+  --header "Accept: application/json" \
+  --limit 100
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts --config configs/research.yaml \
+  --source "https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump" \
+  --source-name socialcrawl_truthsocial_posts \
+  --provider-name socialcrawl_truthsocial \
+  --api-key "$SOCIALCRAWL_API_KEY" \
+  --api-key-header x-api-key \
+  --header "Accept: application/json" \
+  --limit 100
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts --config configs/research.yaml \
+  --source "https://api.scrapecreators.com/v1/truthsocial/user/posts?handle=realDonaldTrump" \
+  --source-name scrapecreators_truthsocial_posts \
+  --provider-name scrapecreators_truthsocial \
+  --api-key "$SCRAPECREATORS_API_KEY" \
+  --api-key-header x-api-key \
+  --header "Accept: application/json" \
+  --limit 100
+PYTHONPATH=src python -m sentiment_engine ingest-trumpstruth-feed --config configs/research.yaml --url https://www.trumpstruth.org/feed --start-date 2026-01-01 --end-date 2026-01-31 --limit 25
 PYTHONPATH=src python -m sentiment_engine check-archive-freshness --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
+PYTHONPATH=src python -m sentiment_engine check-provider-freshness --config configs/research.yaml \
+  --source "https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump" \
+  --posts data/processed/provider_dump_posts.parquet \
+  --api-key "$SOCIALCRAWL_API_KEY" \
+  --api-key-header x-api-key \
+  --header "Accept: application/json"
 PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
 PYTHONPATH=src python -m sentiment_engine download-databento-market --config configs/research.yaml --start 2022-02-14T00:00:00Z --end 2026-06-12T23:59:59Z --symbols NQ.c.0 --symbol-root NQ
@@ -79,6 +112,34 @@ python scripts/run_archive_backfill.py --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
 python scripts/run_real_event_build.py --market data/processed/market_bars.parquet
 ```
+
+If you have a permitted paid provider export (for example, from a provider contract), ingest it and then build events with the standard archive pipeline:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
+  --config configs/research.yaml \
+  --source path/to/truthsocial_provider_export.json \
+  --source-name provider_dump \
+  --provider-name paid_provider_dump
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
+  --config configs/research.yaml \
+  --source "https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump" \
+  --source-name socialcrawl_lookup \
+  --provider-name socialcrawl_truthsocial \
+  --api-key "$SOCIALCRAWL_API_KEY" \
+  --api-key-header x-api-key
+PYTHONPATH=src python -m sentiment_engine build-archive-events \
+  --config configs/research.yaml \
+  --posts data/processed/provider_dump_posts.parquet
+```
+
+`ingest-provider-posts` supports one-stage authenticated HTTP pulls by adding `--api-key` (or `--api-key-env`), `--api-key-header`, and repeated `--header` values. Keep secrets in your shell environment and pin the provider contract before enabling for any operational flow.
+
+`check-provider-freshness` is the operational health command for provider adapters. It does not prove long-term uptime, but it does validate:
+
+- Endpoint response and response time metadata (HEAD/GET path).
+- Snapshot lag versus policy threshold.
+- Timestamp/schema sanity of the canonical provider snapshot.
 
 If you have Databento historical access, install the optional provider dependency and set the API key in the shell environment. The downloader calls Databento Historical `timeseries.get_range`, normalizes the returned OHLCV bars to the canonical `MarketBar` schema, writes `data/processed/market_bars.parquet`, and records `reports/databento_download_audit.json`.
 

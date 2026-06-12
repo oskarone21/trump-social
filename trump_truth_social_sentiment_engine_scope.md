@@ -192,6 +192,8 @@ These defaults must be configurable and validated empirically.
 | Source | Purpose | Status / Risk | Implementation Requirement |
 |---|---|---|---|
 | `stiles/trump-truth-social-archive` | Historical posts | Useful for historical data, but not sufficient for live/current archive after workflow disablement. | Implement as historical adapter only. |
+| `truthsocial.com` official API | Live source via official API | Not a documented public API; undocumented endpoints are unstable and were reported as inaccessible/forbidden in verification checks. | Do not design a production pipeline on official endpoints. Use only explicit provider contracts and normalized provider dumps. |
+| `trumpstruth.org` | Searchable archive + feed export | Secondary archival source; useful for extra historical/forensic coverage and dedupe checks. | Validate schema and licensing terms before use; align timestamps and dedupe across sources before joining to market events. |
 | Presidency/UCSB Truth Social archive | Additional historical/backfill validation | Not designed for low-latency trading. | Optional backfill adapter. |
 | ScrapeCreators, TweetStream, Apify, or similar provider | Live Truth Social ingestion | Third-party dependency; schema and access may change. | Implement provider interface and failover strategy. |
 | Databento / broker export | NQ/MNQ OHLCV and optional tick data | Paid data/licensing required. | Implement CSV/Parquet import first; API adapter second. |
@@ -1134,3 +1136,50 @@ Before calling the project complete, verify:
 - [ ] Every signal is auditable by model/config/data version.
 - [ ] README explains setup, configs, commands, and safety assumptions.
 - [ ] Shadow-mode deployment is completed before live blocking mode.
+
+### 19.1 Current Repo Completion Gate (What still blocks "fully implemented")
+
+This section is intentionally explicit about what is missing today versus what is complete.
+
+- [x] Historical archive ingest from `ingest-archive` with report/audit output.
+- [x] Provider import ingest (`ingest-provider-posts`) for JSON/CSV/Parquet files.
+- [x] Unit test coverage for provider adapter normalization and audit metadata.
+- [x] Market-file ingestion (`ingest-market-file`) with market-bar audit.
+- [x] Event join pipeline (`build-archive-events`) and event-study outputs on fixture and archive paths.
+- [x] Baseline ML/DL smoke stack: rules, TF-IDF LR/SVM, optional LightGBM, PyTorch TF-IDF MLP, FinBERT inference.
+- [x] Quantitative workflow tools: walk-forward report, shadow report, interpretation report, dashboard.
+- [x] End-to-end script execution proof on fixture path (`run_full_pipeline.py`, `run_walk_forward.py`, `run_finbert_inference.py`, `run_shadow_report.py`).
+
+- [ ] Replace fixture-only evidence with production-grade evidence on real, licensed NQ/MNQ market data aligned to Trump's posts for the full analysis period.
+- [ ] Add or import a sufficiently large reviewed label set (minimum practical threshold currently defined as hundreds of labels with agreement diagnostics).
+- [ ] Add matched-control/event-study layers and robustness checks on real data before interpreting directional claims.
+- [ ] Train and compare LightGBM + (when justified) transformer DL models on human-reviewed real data using strict temporal leakage-safe splits.
+- [ ] Promote calibrated probabilities and abstention thresholds only after holdout utility improvement on real data is shown.
+- [ ] Add hard fail-safe provider heartbeat + SLA gating for any live-feed mode.
+- [ ] Complete production-ready live path: contract continuity validation, session/rollover/holiday audits, provider failover policy, and safe default action on any ingest or schema failure.
+
+### 19.2 Data Access Position (evidence-backed)
+
+- No official, stable public Truth Social API is treated as a production input.
+- Archived or exported social data is only valid for backfill and deterministic model work until explicit provider SLAs are in place.
+- Direct undocumented endpoint ingestion (if ever used) is a maintenance burden and requires authenticated, quota-aware, failover-aware infra; it is not the default architecture.
+- Production mode should therefore be:
+  1. `ingest-provider-posts` from a contractual, monitored, versioned feed (primary),
+  2. `ingest-archive` / `ingest-trumpstruth-feed` as reconstruction/backfill redundancy,
+  3. conservative `NO_TRADE`/safe defaults when either source is stale.
+
+### 19.3 Completion Matrix (what still required for "fully implemented")
+
+- [ ] Obtain licensed NQ/MNQ market data for the event period and verify coverage/audit.
+- [ ] Obtain approved social post stream source with explicit contract and SLA.
+- [ ] Validate raw-to-normalized ingestion mapping for at least one full live refresh.
+- [ ] Produce a first real reviewed label release (minimum practical size and agreement diagnostics).
+- [ ] Re-run all model training and walk-forward workflows on real data and archive coverage.
+- [ ] Add calibration + abstention operating points with economic utility comparison.
+- [ ] Add matched controls (session, regime, volatility bucket, macro proximity) to directional interpretations.
+- [ ] Demonstrate live-path fail-safe behavior in service-level tests:
+  - stale feed -> conservative action,
+  - schema drift -> conservative action,
+  - model load failure -> conservative action,
+  - data gap -> conservative action.
+- [ ] Re-run full command stack on real data before any claim of completion.

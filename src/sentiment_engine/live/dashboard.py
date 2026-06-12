@@ -16,6 +16,7 @@ def build_dashboard(
     whipsaw_report: dict[str, Any],
     backtest_report: dict[str, Any],
     interpretation_report: dict[str, Any] | None,
+    provider_freshness_report: dict[str, Any] | None = None,
     scored_events: pd.DataFrame,
     output_path: str | Path,
 ) -> Path:
@@ -48,7 +49,9 @@ def build_dashboard(
             _card("Hard Recall", f"{whipsaw_report['hard_kill']['recall']:.3f}"),
         ]
     )
-    interpretation_html = _interpretation_section(interpretation_report)
+    interpretation_html = _interpretation_section(
+        interpretation_report, provider_freshness_report
+    )
     output.write_text(
         f"""<!doctype html>
 <html lang="en">
@@ -127,9 +130,14 @@ def _card(label: str, value: str, class_name: str = "") -> str:
     )
 
 
-def _interpretation_section(report: dict[str, Any] | None) -> str:
+def _interpretation_section(
+    report: dict[str, Any] | None,
+    provider_freshness: dict[str, Any] | None,
+) -> str:
     if not report:
-        return ""
+        if not provider_freshness:
+            return ""
+        return _provider_freshness_section(provider_freshness)
     model_rows = "\n".join(_model_row(row) for row in report.get("model_comparison", []))
     finbert_html = _finbert_section(report.get("finbert_summary", {}))
     gate_rows = "\n".join(
@@ -153,6 +161,7 @@ def _interpretation_section(report: dict[str, Any] | None) -> str:
       <thead><tr><th>Gate</th><th>Passed</th></tr></thead>
       <tbody>{gate_rows}</tbody>
     </table>
+    {_provider_freshness_section(provider_freshness)}
     """
 
 
@@ -194,6 +203,28 @@ def _model_row(row: dict[str, Any]) -> str:
         f"<td>{_html_metric(row.get('ece'))}</td>"
         "</tr>"
     )
+
+
+def _provider_freshness_section(report: dict[str, Any]) -> str:
+    if not report:
+        return ""
+    local = report.get("local_provider", {})
+    return f"""
+    <h2>Provider Health</h2>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>HTTP OK</td><td>{html.escape(str(report.get('is_http_ok')))}</td></tr>
+        <tr><td>Method</td><td>{html.escape(str(report.get('remote', {}).get('method', '')))}</td></tr>
+        <tr><td>Source Name</td><td>{html.escape(str(report.get('source_name', '')))}</td></tr>
+        <tr><td>Schema Drift</td><td>{html.escape(str(local.get('schema_drift_detected')))}</td></tr>
+        <tr><td>Stale by Policy</td><td>{html.escape(str(report.get('is_stale_by_post_time')))}</td></tr>
+        <tr><td>Required Columns Present</td><td>{html.escape(str(local.get('required_columns_present')))}</td></tr>
+      </tbody>
+    </table>
+    """
 
 
 def _html_metric(value: Any) -> str:

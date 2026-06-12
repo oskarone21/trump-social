@@ -1,0 +1,32 @@
+[
+  {
+    "id": "provider-101",
+    "created_at": "2026-01-10T10:00:00Z",
+    "received_at": "2026-01-10T10:00:03Z",
+    "text": "We need to bring manufacturing jobs back and protect American innovation.",
+    "media": [
+      "https://cdn.example.com/briefing.mp4"
+    ],
+    "replies": 45,
+    "reblogs_count": 8,
+    "likes": 120,
+    "authorId": "realDonaldTrump",
+    "url": "https://truthsocial.com/@realDonaldTrump/provider-101",
+    "post_type": "original"
+  },
+  {
+    "postId": "provider-102",
+    "createdAt": "2026-01-10T10:05:00Z",
+    "fetchedAt": "2026-01-10T10:05:10Z",
+    "content": "Markets are always better when inflation gets under control.",
+    "media": [],
+    "replyCount": 22,
+    "repost_count": 4,
+    "favourite_count": 87,
+    "author": {
+      "id": "realDonaldTrump"
+    },
+    "uri": "https://truthsocial.com/@realDonaldTrump/provider-102",
+    "kind": "reply"
+  }
+]

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Trump's Truth</title>
+    <item>
+      <title>Market update</title>
+      <link>https://www.trumpstruth.org/feeds/abc123</link>
+      <pubDate>Tue, 05 Jan 2026 08:15:00 +0000</pubDate>
+      <description>Markets are fragile right now. <a href="https://t.co/example">Source</a></description>
+      <guid isPermaLink="false">ts-2026-01-05-1</guid>
+      <category>Original Post</category>
+      <dc:creator>realDonaldTrump</dc:creator>
+      <media:content url="https://cdn.example.com/image.jpg" type="image/jpeg"/>
+    </item>
+    <item>
+      <title>RT @TeamTrump statement</title>
+      <link>https://www.trumpstruth.org/feeds/abc124</link>
+      <pubDate>2026-01-05T09:00:00Z</pubDate>
+      <description>RT We are doing something huge for the economy.</description>
+      <guid>ts-2026-01-05-2</guid>
+      <dc:creator>@TeamTrump</dc:creator>
+    </item>
+  </channel>
+</rss>

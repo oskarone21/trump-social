@@ -64,6 +64,48 @@ def test_dashboard_renders_model_comparison_when_interpretation_is_available(tmp
     assert "licensed_market_data_loaded" in html
 
 
+def test_dashboard_renders_provider_health_section_if_report_present(tmp_path) -> None:
+    output = build_dashboard(
+        signal=_signal(),
+        whipsaw_report={
+            "soft_risk": {"precision": 0.5, "recall": 0.4},
+            "hard_kill": {"precision": 1.0, "recall": 0.2},
+        },
+        backtest_report={
+            "kill_switch_value_usd": 10.0,
+            "filtered_trades": 1,
+            "reduced_trades": 0,
+        },
+        interpretation_report=None,
+        provider_freshness_report={
+            "is_http_ok": False,
+            "remote": {"method": "local_source"},
+            "source_name": "provider_dump",
+            "local_provider": {
+                "schema_drift_detected": False,
+                "required_columns_present": True,
+            },
+            "is_stale_by_post_time": False,
+        },
+        scored_events=pd.DataFrame(
+            [
+                {
+                    "post_id": "fixture-002",
+                    "whipsaw_risk_level": "NONE",
+                    "whipsaw_score": 0.10,
+                    "rule_topic_labels": ["trade_policy"],
+                    "text_clean": "test post two",
+                }
+            ]
+        ),
+        output_path=tmp_path / "dashboard_with_provider.html",
+    )
+
+    html = output.read_text()
+    assert "Provider Health" in html
+    assert "provider_dump" in html
+
+
 def _signal() -> SignalRecord:
     return SignalRecord.model_validate(
         {

@@ -15,6 +15,27 @@ The best current route is:
 3. Generate event targets and market-whipsaw labels.
 4. Use weak labels plus human review to create a real labeled dataset.
 5. Train DL models only after baselines and label quality are measurable.
+6. For advisory/live testing, ingest permitted provider exports with `ingest-provider-posts`.
+7. Prefer authenticated API pulls only through contracts, not undocumented public routes.
+
+## Data Acquisition Constraint
+
+As of 2026-06-12, do not treat the public Truth Social web as a stable production feed:
+
+- No official, documented, reliable public endpoint exists for this use case.
+- Undocumented routes can fail behind challenge pages or schema changes.
+- The safe production posture is to treat `truthsocial.com` as historical reference only.
+
+Use this order:
+
+1. Historical backfill via CNN archive/trumpstruth adapters.
+2. Advisory/live ingestion via a contractually permitted provider (`ingest-provider-posts`).
+3. `check-provider-freshness` before enabling any downstream live signal dependency.
+
+Provider examples that match the expected adapter contract:
+
+- `https://www.socialcrawl.dev/v1/truthsocial/user/posts?handle=realDonaldTrump`
+- `https://api.scrapecreators.com/v1/truthsocial/user/posts?handle=realDonaldTrump`
 
 Verified source:
 
@@ -40,7 +61,30 @@ It writes:
 - `data/processed/cnn_archive_posts.parquet`
 - `reports/cnn_archive_ingestion_audit.json`
 
-The adapter also supports local JSON/CSV/parquet files for repeatable tests.
+The archive adapter supports local JSON/CSV/parquet files for repeatable tests.
+
+For provider-based acquisition (paid third-party source), the same shape contract is used through:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
+  --config configs/research.yaml \
+  --source /path/to/provider_export.json \
+  --source-name paid_provider_dump \
+  --provider-name paid_provider
+```
+
+If the provider exposes a live HTTP API instead of exports, add auth headers at ingest time:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine ingest-provider-posts \
+  --config configs/research.yaml \
+  --source https://api.your-provider.example/v1/trump-posts \
+  --provider-name your_provider \
+  --source-name your_provider_live \
+  --api-key "$YOUR_PROVIDER_KEY" \
+  --api-key-header x-api-key \
+  --header "Accept: application/json"
+```
 
 The post audit records empty-text and media-only rows. Those rows are valid archive records, but they should not be blindly used for text-only DL training.
 
@@ -134,3 +178,9 @@ The CNN archive is useful for backfill and near-current monitoring, but it shoul
 - explicit provider terms
 - local audit log
 - conservative `BLOCK_NEW_ENTRIES` on feed failure
+
+The current code includes:
+
+- Generic provider ingest (`ingest-provider-posts`) for JSON/CSV/Parquet rows.
+- `source_name` and `provider_name` tags written to the row audit.
+- Optional direct use of provider dumps with explicit `source` URLs/paths.
