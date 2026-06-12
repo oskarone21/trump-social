@@ -27,6 +27,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | Timing model | Yes | Empirical hazard/count features | `src/sentiment_engine/models/timing.py` |
 | Optuna tuning | Yes | TPE optimization of whipsaw weights/thresholds | `src/sentiment_engine/models/tuning.py` |
 | CNN archive adapter | Yes | Real post backfill ingestion | `src/sentiment_engine/ingestion/posts_cnn_archive.py` |
+| CNN archive freshness monitor | Yes | Remote header and local dedupe/freshness audit | `src/sentiment_engine/ingestion/archive_monitor.py` |
 | Market export adapter | Yes | Databento-style or generic OHLCV CSV/parquet normalization | `src/sentiment_engine/ingestion/market_files.py` |
 | Archive event builder | Yes | Processed posts joined to canonical market bars | `src/sentiment_engine/research/archive_events.py` |
 | Human label workflow | Yes | Queue export, reviewed-label validation, audit, agreement metrics | `src/sentiment_engine/labels/review.py` |
@@ -67,7 +68,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-18 passed, 1 warning
+22 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -107,6 +108,16 @@ Result:
 - Date range: `2022-02-14T15:54:32.528000Z` to `2026-06-12T13:59:27.160000Z`.
 
 This verifies the post backfill path at full archive scale. It still does not solve the required NQ/MNQ market-data join or human-label problem.
+
+## Archive Freshness Monitor
+
+Implemented command:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml check-archive-freshness --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
+```
+
+The command writes `reports/archive_freshness_report.json` with remote HTTP metadata, local archive row count, duplicate post IDs, duplicate content hashes, empty-text rows, media-only rows, max post timestamp, and stale-by-post-time status.
 
 ## External Market File Path
 
@@ -417,6 +428,7 @@ Current fixture data passes these checks:
 - Post targets align to the first market bar after `received_at_utc`.
 - Keyword matching uses word boundaries for single-token keywords, which prevents false matches like `ai` inside `again`.
 - Real archive smoke ingest also records empty-text/media-only counts, which must be excluded or separately handled for text-only DL training.
+- Archive freshness report records HTTP metadata and local dedupe/freshness diagnostics.
 
 Known limitation:
 

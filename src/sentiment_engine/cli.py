@@ -5,6 +5,10 @@ from pathlib import Path
 
 from sentiment_engine.config import ensure_output_dirs, load_config
 from sentiment_engine.backtest.simulator import run_kill_switch_backtest
+from sentiment_engine.ingestion.archive_monitor import (
+    STALE_AFTER_MINUTES_DEFAULT,
+    build_archive_freshness_report,
+)
 from sentiment_engine.ingestion.market_csv import audit_market_bars, load_market_csv
 from sentiment_engine.ingestion.market_files import DATABENTO_OHLCV_SOURCE, load_market_file
 from sentiment_engine.ingestion.posts_cnn_archive import (
@@ -39,6 +43,14 @@ def main(argv: list[str] | None = None) -> None:
     archive_parser.add_argument("--url", default=None)
     archive_parser.add_argument("--limit", type=int, default=None)
     archive_parser.add_argument("--out", default=None)
+    freshness_parser = subparsers.add_parser("check-archive-freshness")
+    freshness_parser.add_argument("--url", default=None)
+    freshness_parser.add_argument("--posts", default=None)
+    freshness_parser.add_argument(
+        "--stale-after-minutes",
+        type=int,
+        default=STALE_AFTER_MINUTES_DEFAULT,
+    )
     subparsers.add_parser("ingest-market")
     market_file_parser = subparsers.add_parser("ingest-market-file")
     market_file_parser.add_argument("--input", required=True)
@@ -79,6 +91,8 @@ def main(argv: list[str] | None = None) -> None:
         _ingest_posts(config)
     elif args.command == "ingest-archive":
         _ingest_archive(config, args.url, args.limit, args.out)
+    elif args.command == "check-archive-freshness":
+        _check_archive_freshness(config, args.url, args.posts, args.stale_after_minutes)
     elif args.command == "ingest-market":
         _ingest_market(config)
     elif args.command == "ingest-market-file":
@@ -141,6 +155,25 @@ def _ingest_archive(config, url: str | None, limit: int | None, out: str | None)
         audit_cnn_archive_posts(posts, source=archive_url),
     )
     print(f"ingested {len(posts)} archive posts from {archive_url}")
+
+
+def _check_archive_freshness(
+    config, url: str | None, posts_path: str | None, stale_after_minutes: int
+) -> None:
+    archive_url = url or config.sources["posts"]["stiles_archive"]["latest_archive_url"]
+    local_path = (
+        Path(posts_path) if posts_path else config.paths.processed_dir / "cnn_archive_posts.parquet"
+    )
+    report = build_archive_freshness_report(
+        source_url=archive_url,
+        local_archive_path=local_path,
+        stale_after_minutes=stale_after_minutes,
+    )
+    write_json(config.paths.report_dir / "archive_freshness_report.json", report)
+    print(
+        "archive freshness checked: "
+        f"http_ok={report['is_http_ok']}, stale={report['is_stale_by_post_time']}"
+    )
 
 
 def _ingest_market(config) -> None:

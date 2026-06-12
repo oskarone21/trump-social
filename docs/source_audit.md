@@ -32,6 +32,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 - External market files are normalized to canonical `MarketBar` rows before event construction.
 - Market bars crossing contract roll gaps, maintenance breaks, holidays, or invalid sessions are excluded from target calculation.
 - Dedupe is deterministic by `post_id` and `content_hash`.
+- `check-archive-freshness` writes HTTP metadata, local row count, duplicate post IDs, duplicate content hashes, empty text rows, media-only rows, and max post timestamp to `reports/archive_freshness_report.json`.
 - Empty-text and media-only posts are counted explicitly because they are valid records but weak text-model training rows.
 - Latest full CNN archive ingest counted 6,392 empty-text rows and 5,830 media-only rows; text-only models must filter or separately encode them.
 - Feed latency is retained as `received_at_utc - created_at_utc`.

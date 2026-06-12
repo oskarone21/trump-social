@@ -12,6 +12,7 @@ Implemented:
 - CNN `ix.cnn.io` Truth Social archive adapter via `ingest-archive`.
 - Real archive smoke ingest verified on 2026-06-12 with 25 recent posts.
 - Full CNN archive ingest verified on 2026-06-12 with 33,899 posts.
+- CNN archive freshness/dedupe monitor.
 - TF-IDF + logistic-regression baseline.
 - LightGBM classifier smoke baseline when optional `ml` dependencies are installed.
 - PyTorch TF-IDF MLP smoke baseline when optional `dl` dependencies are installed.
@@ -84,8 +85,8 @@ The full engine is done only when all of these are true:
 - [x] Smoke ingest live CNN parquet archive.
 - [x] Ingest the full CNN archive into the configured local processed path.
 - [ ] Add partitioned output by source/date.
-- [ ] Add content-hash and post-id dedupe report for the full archive.
-- [ ] Add archive freshness monitor using HTTP `Last-Modified`, `ETag`, and max post timestamp.
+- [x] Add content-hash and post-id dedupe report for the full archive.
+- [x] Add archive freshness monitor using HTTP `Last-Modified`, `ETag`, and max post timestamp.
 - [ ] Add source-license note and permitted-use confirmation before using for live trading.
 
 Acceptance:
@@ -370,6 +371,7 @@ Acceptance:
 
 ```bash
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-archive --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 25
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml check-archive-freshness --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-market-file --input data/fixtures/nq_1m_sample.csv --source-name fixture_canonical --symbol-root NQ --out data/processed/external_market_bars.parquet
 python scripts/run_real_event_build.py --posts data/processed/posts.parquet --market data/processed/external_market_bars.parquet --out data/processed/real_events.parquet --limit-posts 8
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-label-queue --limit 5
@@ -383,11 +385,12 @@ Latest known verification:
 
 - Archive smoke ingest: 25 rows, 25 valid, 0 duplicates, 4 empty-text/media-only.
 - Full archive ingest: 33,899 rows, 33,899 valid, 0 duplicates, 6,392 empty-text rows, 5,830 media-only rows.
+- Archive freshness check: remote HTTP OK, local archive dedupe/text-quality/max-timestamp audit written.
 - Market-file ingest path: 340 canonical fixture bars ingested from CSV.
 - Archive event builder path: 8 events, 0 skipped posts using processed posts plus canonical bars.
 - Label queue export: 5 review rows, post-event target columns excluded.
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Full fixture pipeline: completed.
-- Tests: 18 passed.
+- Tests: 22 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.

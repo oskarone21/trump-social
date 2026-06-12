@@ -19,7 +19,7 @@ def parse_utc(value: Any) -> datetime:
 
 
 def to_utc_series(series: pd.Series) -> pd.Series:
-    converted = pd.to_datetime(series, utc=True, errors="raise")
+    converted = pd.to_datetime(series, utc=True, errors="raise", format="mixed")
     if converted.isna().any():
         raise ValueError("Timestamp conversion produced null values")
     return converted

@@ -34,6 +34,7 @@ PYTHONPATH=src python -m sentiment_engine run-full --config configs/research.yam
 ```bash
 PYTHONPATH=src python -m sentiment_engine ingest-posts --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-archive --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet --limit 100
+PYTHONPATH=src python -m sentiment_engine check-archive-freshness --config configs/research.yaml --url https://ix.cnn.io/data/truth-social/truth_archive.parquet
 PYTHONPATH=src python -m sentiment_engine ingest-market --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine ingest-market-file --config configs/research.yaml --input path/to/licensed_nq_ohlcv.parquet --source-name databento_glbx_mdp3_ohlcv_1m --symbol-root NQ
 PYTHONPATH=src python -m sentiment_engine build-archive-events --config configs/research.yaml --posts data/processed/cnn_archive_posts.parquet --market data/processed/market_bars.parquet
