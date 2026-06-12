@@ -267,7 +267,7 @@ Acceptance:
 - [ ] Slippage sensitivity grid.
 - [ ] Latency sensitivity grid.
 - [ ] Opportunity-cost analysis.
-- [ ] False-positive and false-negative dollar attribution.
+- [x] False-positive and false-negative dollar attribution.
 - [ ] Monthly/quarterly stability table.
 - [ ] Regime segmentation:
   - [ ] RTH open
@@ -352,7 +352,7 @@ Acceptance:
 - [x] `scripts/run_real_event_build.py`.
 - [x] `scripts/run_model_training.py`.
 - [x] `scripts/run_walk_forward.py`.
-- [ ] `scripts/run_shadow_report.py`.
+- [x] `scripts/run_shadow_report.py`.
 - [ ] Add CI test matrix:
   - [ ] unit tests
   - [ ] integration fixture pipeline
@@ -392,6 +392,7 @@ PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml interpret-results
 python scripts/run_model_training.py configs/research.yaml
 python scripts/run_walk_forward.py configs/research.yaml
+python scripts/run_shadow_report.py configs/research.yaml
 python scripts/run_finbert_inference.py --config configs/research.yaml --limit 8
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
@@ -411,10 +412,12 @@ Latest known verification:
 - Reviewed-label import: 3 sample human labels imported and audited.
 - Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Walk-forward validation: 4 embargoed fixture folds written to `reports/walk_forward_report.json`.
+- Shadow report: latest advisory signal, readiness gates, and false-positive/false-negative
+  dollar attribution written to `reports/shadow_report.json`.
 - FinBERT inference path: unit tested with deterministic classifier and verified with
   `ProsusAI/finbert` on 2 fixture rows.
 - Dashboard: FinBERT inference summary visible when `reports/finbert_inference_report.json` exists.
 - Full fixture pipeline: completed.
 - Event-study report: macro blackout summary generated from the configured macro calendar.
-- Tests: 35 passed.
+- Tests: 36 passed.
 - Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.
