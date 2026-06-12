@@ -30,6 +30,7 @@ This audit answers what is actually implemented in the current repo. It is based
 | Market export adapter | Yes | Databento-style or generic OHLCV CSV/parquet normalization | `src/sentiment_engine/ingestion/market_files.py` |
 | Archive event builder | Yes | Processed posts joined to canonical market bars | `src/sentiment_engine/research/archive_events.py` |
 | Human label workflow | Yes | Queue export, reviewed-label validation, audit, agreement metrics | `src/sentiment_engine/labels/review.py` |
+| Result interpretation | Yes | Model comparison, readiness gates, Markdown/JSON reports | `src/sentiment_engine/research/interpretation.py` |
 | Transformer / FinBERT / DeBERTa | No | Not implemented | Real labels and larger data required first |
 | LSTM / deep sequence model | No | Not implemented | Not justified for v1 fixtures |
 
@@ -66,7 +67,7 @@ PYTHONPATH=src python -m pytest -q
 Output summary:
 
 ```text
-15 passed, 1 warning
+18 passed, 1 warning
 ```
 
 ## Real Archive Smoke Test
@@ -141,6 +142,21 @@ Latest local command-path verification:
 
 - Label queue export: 5 rows, target columns excluded.
 - Reviewed-label import: 3 sample human labels, 3 unique events, 0 duplicate event/reviewer rows.
+
+## Interpretation Report
+
+Implemented command:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml interpret-results
+```
+
+The command writes:
+
+- `reports/research_interpretation.json`
+- `reports/research_interpretation.md`
+
+Current interpretation status is `not_research_ready` because licensed market data and the 500-row human-label gate are not satisfied. The report includes model comparison, data quality, whipsaw summary, backtest summary, readiness gates, and explicit caveats.
 
 ## Classifier Results
 
@@ -395,6 +411,7 @@ Current fixture data passes these checks:
 - External market-file audit reports duplicate bar keys, invalid OHLC rows, zero-volume rows, contract symbols, and source names.
 - Label queue audit confirms post-event target columns are excluded from reviewer files.
 - Human-label audit reports versioned label counts, reviewer counts, duplicate event/reviewer rows, and agreement metrics for multi-review events.
+- Interpretation report records readiness gates and refuses research-ready status until data and label gates pass.
 - 0 skipped event-build posts.
 - All internal timestamps are timezone-aware UTC.
 - Post targets align to the first market bar after `received_at_utc`.

@@ -26,6 +26,7 @@ from sentiment_engine.live.signal_engine import latest_signal_from_scores
 from sentiment_engine.research.archive_events import build_archive_event_dataset
 from sentiment_engine.research.event_study import build_event_study_report
 from sentiment_engine.research.events import build_event_dataset
+from sentiment_engine.research.interpretation import write_interpretation_report
 from sentiment_engine.utils.io import write_dataframe, write_json
 
 
@@ -66,6 +67,7 @@ def main(argv: list[str] | None = None) -> None:
     subparsers.add_parser("score-whipsaw")
     subparsers.add_parser("tune-whipsaw")
     subparsers.add_parser("backtest")
+    subparsers.add_parser("interpret-results")
     subparsers.add_parser("dashboard")
     subparsers.add_parser("latest-signal")
     subparsers.add_parser("run-full")
@@ -109,6 +111,8 @@ def main(argv: list[str] | None = None) -> None:
         _tune_whipsaw(config)
     elif args.command == "backtest":
         _backtest(config)
+    elif args.command == "interpret-results":
+        _interpret_results(config)
     elif args.command == "dashboard":
         _dashboard(config)
     elif args.command == "latest-signal":
@@ -328,14 +332,40 @@ def _dashboard(config) -> None:
     signal = latest_signal_from_scores(scored, config)
     whipsaw_report = _read_json_report(config.paths.report_dir / "whipsaw_report.json")
     backtest_report = _read_json_report(config.paths.report_dir / "backtest_report.json")
+    interpretation_report = _read_optional_json_report(
+        config.paths.report_dir / "research_interpretation.json"
+    )
     output = build_dashboard(
         signal=signal,
         whipsaw_report=whipsaw_report,
         backtest_report=backtest_report,
+        interpretation_report=interpretation_report,
         scored_events=scored,
         output_path=config.paths.report_dir / "dashboard.html",
     )
     print(f"dashboard written to {output}")
+
+
+def _interpret_results(config) -> None:
+    reports = {
+        "classifier": _read_optional_json_report(
+            config.paths.report_dir / "classifier_baseline_report.json"
+        ),
+        "post": _read_optional_json_report(config.paths.report_dir / "post_ingestion_audit.json"),
+        "archive": _read_optional_json_report(
+            config.paths.report_dir / "cnn_archive_ingestion_audit.json"
+        ),
+        "market": _read_optional_json_report(
+            config.paths.report_dir / "market_ingestion_audit.json"
+        ),
+        "whipsaw": _read_optional_json_report(config.paths.report_dir / "whipsaw_report.json"),
+        "backtest": _read_optional_json_report(config.paths.report_dir / "backtest_report.json"),
+        "human_labels": _read_optional_json_report(
+            config.paths.report_dir / "human_label_audit.json"
+        ),
+    }
+    report = write_interpretation_report(reports=reports, report_dir=config.paths.report_dir)
+    print(f"interpretation written: status={report['status']}")
 
 
 def _latest_signal(config) -> None:
@@ -355,6 +385,7 @@ def _run_full(config, config_path: str) -> None:
     _score_whipsaw(config)
     _tune_whipsaw(config)
     _backtest(config)
+    _interpret_results(config)
     _dashboard(config)
     print("full pipeline completed")
 
@@ -403,6 +434,12 @@ def _read_json_report(path: Path):
 
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _read_optional_json_report(path: Path):
+    if not path.exists():
+        return None
+    return _read_json_report(path)
 
 
 if __name__ == "__main__":

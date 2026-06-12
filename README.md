@@ -44,11 +44,12 @@ PYTHONPATH=src python -m sentiment_engine train-classifier --config configs/rese
 PYTHONPATH=src python -m sentiment_engine score-whipsaw --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine tune-whipsaw --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine backtest --config configs/research.yaml
+PYTHONPATH=src python -m sentiment_engine interpret-results --config configs/research.yaml
 PYTHONPATH=src python -m sentiment_engine dashboard --config configs/research.yaml
 python scripts/run_full_pipeline.py configs/research.yaml
 ```
 
-The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, and the kill-switch backtest audit.
+The full run writes `reports/dashboard.html`, `reports/latest_signal.json`, classifier/event-study reports, whipsaw evaluation, the kill-switch backtest audit, and interpretation reports in `reports/research_interpretation.json` and `reports/research_interpretation.md`.
 
 When optional model packages are installed, the full run also writes `reports/lightgbm_baseline_report.json` and `reports/neural_baseline_report.json`. The neural report is a PyTorch smoke baseline, not a trained FinBERT/DeBERTa model.
 

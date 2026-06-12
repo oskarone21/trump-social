@@ -15,6 +15,7 @@ def build_dashboard(
     signal: SignalRecord,
     whipsaw_report: dict[str, Any],
     backtest_report: dict[str, Any],
+    interpretation_report: dict[str, Any] | None,
     scored_events: pd.DataFrame,
     output_path: str | Path,
 ) -> Path:
@@ -22,6 +23,32 @@ def build_dashboard(
     output.parent.mkdir(parents=True, exist_ok=True)
     write_json(output.parent / "latest_signal.json", signal.model_dump(mode="json"))
     rows = "\n".join(_event_row(row) for row in scored_events.tail(10).to_dict("records"))
+    top_cards = "\n".join(
+        [
+            _card("Latest Action", signal.kill_switch["action"]),
+            _card("Direction", signal.direction_signal),
+            _card(
+                "Risk Level",
+                signal.risk["whipsaw_risk_level"],
+                f"risk-{signal.risk['whipsaw_risk_level']}",
+            ),
+            _card("Whipsaw Score", f"{signal.risk['whipsaw_score']:.3f}"),
+            _card("Backtest Delta", f"${backtest_report['kill_switch_value_usd']:.2f}"),
+            _card(
+                "Filtered / Reduced",
+                f"{backtest_report['filtered_trades']} / {backtest_report['reduced_trades']}",
+            ),
+        ]
+    )
+    whipsaw_cards = "\n".join(
+        [
+            _card("Soft Precision", f"{whipsaw_report['soft_risk']['precision']:.3f}"),
+            _card("Soft Recall", f"{whipsaw_report['soft_risk']['recall']:.3f}"),
+            _card("Hard Precision", f"{whipsaw_report['hard_kill']['precision']:.3f}"),
+            _card("Hard Recall", f"{whipsaw_report['hard_kill']['recall']:.3f}"),
+        ]
+    )
+    interpretation_html = _interpretation_section(interpretation_report)
     output.write_text(
         f"""<!doctype html>
 <html lang="en">
@@ -36,7 +63,8 @@ def build_dashboard(
     main {{ padding: 24px 32px; max-width: 1180px; margin: 0 auto; }}
     h1 {{ margin: 0 0 6px; font-size: 28px; letter-spacing: 0; }}
     h2 {{ font-size: 18px; margin: 28px 0 12px; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px; }}
     .card {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 14px; }}
     .metric {{ font-size: 24px; font-weight: 700; margin-top: 6px; }}
     .label {{ color: #57606a; font-size: 13px; }}
@@ -58,13 +86,9 @@ def build_dashboard(
   </header>
   <main>
     <section class="grid">
-      {_card("Latest Action", signal.kill_switch["action"])}
-      {_card("Direction", signal.direction_signal)}
-      {_card("Risk Level", signal.risk["whipsaw_risk_level"], f"risk-{signal.risk['whipsaw_risk_level']}")}
-      {_card("Whipsaw Score", f"{signal.risk['whipsaw_score']:.3f}")}
-      {_card("Backtest Delta", f"${backtest_report['kill_switch_value_usd']:.2f}")}
-      {_card("Filtered / Reduced", f"{backtest_report['filtered_trades']} / {backtest_report['reduced_trades']}")}
+      {top_cards}
     </section>
+    {interpretation_html}
     <h2>Latest Signal</h2>
     <div class="card">
       <div class="label">Post</div>
@@ -73,15 +97,13 @@ def build_dashboard(
     </div>
     <h2>Whipsaw Evaluation</h2>
     <section class="grid">
-      {_card("Soft Precision", f"{whipsaw_report['soft_risk']['precision']:.3f}")}
-      {_card("Soft Recall", f"{whipsaw_report['soft_risk']['recall']:.3f}")}
-      {_card("Hard Precision", f"{whipsaw_report['hard_kill']['precision']:.3f}")}
-      {_card("Hard Recall", f"{whipsaw_report['hard_kill']['recall']:.3f}")}
+      {whipsaw_cards}
     </section>
     <h2>Recent Events</h2>
     <table>
       <thead>
-        <tr><th>Post ID</th><th>Risk</th><th>Score</th><th>Topics</th><th class="post">Text</th></tr>
+        <tr><th>Post ID</th><th>Risk</th><th>Score</th><th>Topics</th>
+          <th class="post">Text</th></tr>
       </thead>
       <tbody>
         {rows}
@@ -99,7 +121,56 @@ def build_dashboard(
 def _card(label: str, value: str, class_name: str = "") -> str:
     safe_label = html.escape(label)
     safe_value = html.escape(str(value))
-    return f'<div class="card"><div class="label">{safe_label}</div><div class="metric {class_name}">{safe_value}</div></div>'
+    return (
+        f'<div class="card"><div class="label">{safe_label}</div>'
+        f'<div class="metric {class_name}">{safe_value}</div></div>'
+    )
+
+
+def _interpretation_section(report: dict[str, Any] | None) -> str:
+    if not report:
+        return ""
+    model_rows = "\n".join(_model_row(row) for row in report.get("model_comparison", []))
+    gate_rows = "\n".join(
+        f"<tr><td>{html.escape(str(gate))}</td><td>{html.escape(str(passed))}</td></tr>"
+        for gate, passed in report.get("readiness_gates", {}).items()
+    )
+    return f"""
+    <h2>Model Comparison</h2>
+    <table>
+      <thead>
+        <tr><th>Model</th><th>Type</th><th>Status</th><th>Accuracy</th><th>Macro F1</th></tr>
+      </thead>
+      <tbody>
+        {model_rows}
+      </tbody>
+    </table>
+    <h2>Readiness Gates</h2>
+    <table>
+      <thead><tr><th>Gate</th><th>Passed</th></tr></thead>
+      <tbody>{gate_rows}</tbody>
+    </table>
+    """
+
+
+def _model_row(row: dict[str, Any]) -> str:
+    return (
+        "<tr>"
+        f"<td>{html.escape(str(row.get('model', '')))}</td>"
+        f"<td>{html.escape(str(row.get('model_type', '')))}</td>"
+        f"<td>{html.escape(str(row.get('status', '')))}</td>"
+        f"<td>{_html_metric(row.get('accuracy'))}</td>"
+        f"<td>{_html_metric(row.get('macro_f1'))}</td>"
+        "</tr>"
+    )
+
+
+def _html_metric(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return html.escape(f"{value:.3f}")
+    return html.escape(str(value))
 
 
 def _event_row(row: dict[str, Any]) -> str:
@@ -109,7 +180,8 @@ def _event_row(row: dict[str, Any]) -> str:
     return (
         "<tr>"
         f"<td>{html.escape(str(row['post_id']))}</td>"
-        f"<td class=\"risk-{html.escape(str(row['whipsaw_risk_level']))}\">{html.escape(str(row['whipsaw_risk_level']))}</td>"
+        f"<td class=\"risk-{html.escape(str(row['whipsaw_risk_level']))}\">"
+        f"{html.escape(str(row['whipsaw_risk_level']))}</td>"
         f"<td>{float(row['whipsaw_score']):.3f}</td>"
         f"<td>{html.escape(', '.join(str(item) for item in topics))}</td>"
         f"<td class=\"post\">{html.escape(str(row['text_clean']))}</td>"

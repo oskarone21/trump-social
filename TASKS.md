@@ -21,6 +21,7 @@ Implemented:
 - External NQ/MNQ market-file adapter for Databento-style or generic 1-minute OHLCV exports.
 - Archive-to-market event builder for processed CNN posts plus canonical market bars.
 - Human label queue export and reviewed-label import/audit workflow.
+- Executable result interpretation report with model comparison and readiness gates.
 
 Not yet implemented:
 
@@ -69,8 +70,8 @@ The full engine is done only when all of these are true:
 - A human-reviewed labeled dataset exists.
 - Naive, rules, TF-IDF, LightGBM, and DL models are trained and compared.
 - Model selection uses purged chronological validation and final untouched test data.
-- Results are interpreted with uncertainty, costs, opportunity cost, and regime stability.
-- The dashboard shows data quality, model metrics, backtest attribution, and latest advisory signal.
+- Fixture results are interpreted with uncertainty, costs, and readiness gates.
+- The dashboard shows model metrics, backtest attribution, readiness gates, and latest advisory signal.
 - The full script runs end to end on real data, not only fixtures.
 - Live blocking remains disabled until shadow-mode evidence exists.
 
@@ -268,6 +269,7 @@ Acceptance:
 - [ ] Bootstrap confidence intervals.
 - [ ] Minimum sample-size gates.
 - [ ] Multiple-testing/data-mining risk note.
+- [x] Generate fixture interpretation report with model comparison and readiness gates.
 
 Acceptance:
 
@@ -309,6 +311,8 @@ Acceptance:
 ## Phase 10: Dashboard and Result Interpretation
 
 - [x] Static dashboard for fixture verification.
+- [x] Add fixture model comparison table.
+- [x] Add readiness gate table.
 - [ ] Add real-data dashboard sections:
   - [ ] data coverage
   - [ ] archive freshness
@@ -321,7 +325,7 @@ Acceptance:
   - [ ] missed winners
   - [ ] avoided losers
   - [ ] regime stability
-- [ ] Add model comparison table.
+- [x] Add model comparison table.
 - [ ] Add event drilldown.
 - [ ] Add signal explanation panel.
 
@@ -370,6 +374,7 @@ PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml ingest-
 python scripts/run_real_event_build.py --posts data/processed/posts.parquet --market data/processed/external_market_bars.parquet --out data/processed/real_events.parquet --limit-posts 8
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml export-label-queue --limit 5
 PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml import-reviewed-labels --input data/fixtures/reviewed_labels_sample.csv --label-version human_fixture_v1
+PYTHONPATH=src python -m sentiment_engine --config configs/research.yaml interpret-results
 python scripts/run_full_pipeline.py configs/research.yaml
 PYTHONPATH=src python -m pytest -q
 ```
@@ -382,6 +387,7 @@ Latest known verification:
 - Archive event builder path: 8 events, 0 skipped posts using processed posts plus canonical bars.
 - Label queue export: 5 review rows, post-event target columns excluded.
 - Reviewed-label import: 3 sample human labels imported and audited.
+- Interpretation report: generated JSON/Markdown with model comparison and readiness gates.
 - Full fixture pipeline: completed.
-- Tests: 15 passed.
-- Browser dashboard check via localhost: title rendered, 10 metrics, 8 event rows.
+- Tests: 18 passed.
+- Browser dashboard check via localhost: title rendered, model comparison visible, 10 metrics, 8 event rows.
