@@ -108,6 +108,13 @@ When optional model packages are installed, the full run also writes `reports/li
 pip install -e ".[ml,dl]"
 ```
 
+For the authenticated browser scraper, install the optional scraper dependency and the Chromium runtime:
+
+```bash
+pip install -e ".[scraper]"
+python -m playwright install chromium
+```
+
 For a plain-English status of implemented models, results, metrics, tuned parameters, Optuna, and data-cleanliness checks, see [docs/implementation_audit.md](docs/implementation_audit.md).
 
 For the source and deep-learning readiness path, see [docs/dl_data_strategy.md](docs/dl_data_strategy.md).
@@ -151,6 +158,46 @@ PYTHONPATH=src python -m sentiment_engine build-archive-events \
 - Endpoint response and response time metadata (HEAD/GET path).
 - Snapshot lag versus policy threshold.
 - Timestamp/schema sanity of the canonical provider snapshot.
+
+## Authenticated Truth Social Browser Scraper
+
+The custom live scraper uses a normal authenticated Playwright Chromium session. It does not use proxy rotation, CAPTCHA bypass, stealth fingerprinting, or anti-bot evasion. If Truth Social blocks the session, requires a challenge, or changes the schema, the scraper fails closed and writes a stale/failure report instead of emitting an `ALLOW` posture.
+
+Runtime env contract:
+
+```bash
+export TRUTHSOCIAL_USERNAME="..."
+export TRUTHSOCIAL_PASSWORD="..."
+# Optional, if the account uses TOTP:
+export TRUTHSOCIAL_TOTP_SECRET="..."
+```
+
+The browser storage state is written to `data/interim/truthsocial_browser_storage_state.json`, which is already ignored by git. The raw post snapshot is written under `data/raw/truthsocial_browser/`, the canonical post parquet is written to `data/processed/truthsocial_browser_posts.parquet`, and the health report is written to `reports/truthsocial_browser_scraper_report.json`.
+
+Credential-free fixture smoke:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine scrape-truthsocial-live \
+  --config configs/research.yaml \
+  --fixture data/fixtures/truthsocial_statuses_sample.json \
+  --once
+```
+
+Live advisory scrape:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine scrape-truthsocial-live \
+  --config configs/research.yaml \
+  --once
+```
+
+Watch mode polls every five seconds by default:
+
+```bash
+PYTHONPATH=src python -m sentiment_engine scrape-truthsocial-live \
+  --config configs/research.yaml \
+  --watch
+```
 
 If you have Databento historical access, install the optional provider dependency and set the API key in the shell environment. The downloader calls Databento Historical `timeseries.get_range`, normalizes the returned OHLCV bars to the canonical `MarketBar` schema, writes `data/processed/market_bars.parquet`, and records `reports/databento_download_audit.json`.
 

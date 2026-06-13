@@ -27,6 +27,18 @@ sources:
       provider: external
       requires_env_key: TRUTH_SOCIAL_PROVIDER_API_KEY
       enabled: false
+    truthsocial_browser:
+      provider: truthsocial_browser_scraper
+      enabled: false
+      profile_url: https://truthsocial.com/@realDonaldTrump
+      account_id: "107780257626128497"
+      source_name: truthsocial_browser_live
+      storage_state_path: data/interim/truthsocial_browser_storage_state.json
+      username_env: TRUTHSOCIAL_USERNAME
+      password_env: TRUTHSOCIAL_PASSWORD
+      totp_secret_env: TRUTHSOCIAL_TOTP_SECRET
+      poll_seconds: 5
+      stale_after_seconds: 10
   market:
     csv:
       provider: local_csv

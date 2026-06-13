@@ -13,6 +13,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 | `stiles/trump-truth-social-archive` | The README states the GitHub Actions workflow was disabled on 2025-10-26 and that the repo output will no longer be updated there. It also points to an archive updated every five minutes at `https://ix.cnn.io/data/truth-social/truth_archive.json`, with `.csv` and `.parquet` variants. | Historical/backfill adapter only. Never treated as the sole live source. |
 | `socialcrawl` Truth Social API mirrors | Requires approved API credentials; typical header is `x-api-key` and endpoint shape is provider-specific. | Optional live path only through `ingest-provider-posts --api-key` or `--api-key-env`; records must pass schema validation and dedupe logic. |
 | ScrapeCreators Truth Social endpoint | Publicly documented unofficial endpoint shape is `/v1/truthsocial/user/posts`, commonly with `user_id` and optional query filters. | Optional advisory source via `ingest-provider-posts` if account contract permits ingestion and terms allow use. |
+| Authenticated Truth Social browser scraper | Planned live/advisory collector using a normal Playwright browser session and user-provided credentials. Plain HTTP clients currently hit Cloudflare challenge/403 paths, so browser auth is the only custom route worth implementing. | Advisory only. No proxy rotation, CAPTCHA bypass, stealth fingerprinting, or anti-bot evasion. Fails closed to stale-provider status on auth/challenge/schema failure. |
 | CNN `ix.cnn.io` Truth archive | Verified by local HEAD request on 2026-06-12: JSON and parquet endpoints returned HTTP 200, last modified 2026-06-12. Full parquet ingest on 2026-06-12 loaded 33,899 valid rows with 0 duplicate post IDs. | Implemented as the preferred historical/backfill adapter via `ingest-archive`. |
 | `trumpstruth.org` RSS feed | Public RSS endpoint supports date filters (`start_date`, `end_date`) and has been used as an independent archival path for backfill/reference checks. | Implemented via `ingest-trumpstruth-feed`; treat as secondary source with schema drift checks. |
 | `kashish-s/TruthSocial_2024ElectionInitiative` | The README describes a Kaggle-hosted election dataset with posts from February 2022 through October 2024. | Research-only candidate source after licensing and schema review. Not low-latency. |
@@ -42,6 +43,7 @@ The executable v1 uses local fixtures by default. That is deliberate: current an
 - Latest full CNN archive ingest counted 6,392 empty-text rows and 5,830 media-only rows; text-only models must filter or separately encode them.
 - Feed latency is retained as `received_at_utc - created_at_utc`.
 - Real-provider credentials and secrets must come from the environment, never committed YAML.
+- Browser scraper session state must stay under gitignored `data/interim/`; raw and canonical scraper outputs must pass the same `PostRecord` schema and freshness checks as provider exports.
 
 ## Implementation Implication
 

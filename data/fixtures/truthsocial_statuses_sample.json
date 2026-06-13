@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "posts": [
+    {
+      "id": "114315232218538121",
+      "created_at": "2026-06-13T15:27:00.053Z",
+      "in_reply_to_id": null,
+      "quote_id": null,
+      "content": "<p>NASDAQ and jobs numbers are looking strong. America is winning!</p>",
+      "uri": "https://truthsocial.com/@realDonaldTrump/114315232218538121",
+      "url": "https://truthsocial.com/@realDonaldTrump/114315232218538121",
+      "account": {
+        "id": "107780257626128497",
+        "username": "realDonaldTrump",
+        "acct": "realDonaldTrump",
+        "display_name": "Donald J. Trump",
+        "verified": true
+      },
+      "media_attachments": [
+        {
+          "id": "media-1",
+          "type": "image",
+          "url": "https://static-assets-1.truthsocial.com/sample/image.jpg"
+        }
+      ],
+      "replies_count": 33,
+      "reblogs_count": 108,
+      "favourites_count": 912
+    },
+    {
+      "id": "114315332218538122",
+      "created_at": "2026-06-13T15:27:05.053Z",
+      "in_reply_to_id": "114315232218538121",
+      "quote_id": null,
+      "content": "<p>Tariffs are a powerful tool. China must make a fair deal.</p>",
+      "uri": "https://truthsocial.com/@realDonaldTrump/114315332218538122",
+      "url": "https://truthsocial.com/@realDonaldTrump/114315332218538122",
+      "account": {
+        "id": "107780257626128497",
+        "username": "realDonaldTrump",
+        "acct": "realDonaldTrump",
+        "display_name": "Donald J. Trump",
+        "verified": true
+      },
+      "media_attachments": [],
+      "replies_count": 29,
+      "reblogs_count": 76,
+      "favourites_count": 704
+    }
+  ]
+}
