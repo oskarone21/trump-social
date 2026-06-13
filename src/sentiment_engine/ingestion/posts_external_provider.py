@@ -17,6 +17,8 @@ from sentiment_engine.utils.time import parse_utc
 
 TRUTHSOCIAL_PROVIDER = "truth_social_provider_dump"
 TRUTHSOCIAL_PROVIDER_TIME_FIELDS = (
+    "created_at_utc",
+    "createdAtUtc",
     "created_at",
     "createdAt",
     "created",
@@ -96,6 +98,8 @@ def normalise_provider_record(
             item,
             (
                 "received_at",
+                "received_at_utc",
+                "receivedAtUtc",
                 "receivedAt",
                 "fetched_at",
                 "fetchedAt",
@@ -106,14 +110,16 @@ def normalise_provider_record(
         )
         or created_at_utc
     )
-    ingested_at_utc = _parse_timestamp(_optional_field(item, ("ingested_at", "ingestedAt"), default="now"))
+    ingested_at_utc = _parse_timestamp(
+        _optional_field(item, ("ingested_at", "ingested_at_utc", "ingestedAt", "ingestedAtUtc"), default="now")
+    )
     author_id = str(
         _optional_field(item, ("author_id", "authorId", "account_id", "accountId", "account.id"), default="unknown_author")
     )
     text_raw = str(
         _optional_field(
             item,
-            ("text", "content", "body", "status", "full_text", "description"),
+            ("text", "text_raw", "content", "body", "status", "full_text", "description"),
             default="",
         )
     )
@@ -238,6 +244,8 @@ def _extract_urls_from_record(item: dict[str, Any], text_raw: str) -> list[str]:
 
 
 def _collect_urls(value: object) -> list[str]:
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes)):
+        value = value.tolist()
     if value is None:
         return []
     if isinstance(value, str):
@@ -269,6 +277,8 @@ def _clean_row(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_missing(value: object) -> bool:
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes)):
+        value = value.tolist()
     if isinstance(value, (list, dict)):
         return False
     try:

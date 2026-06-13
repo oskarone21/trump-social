@@ -63,7 +63,7 @@ from sentiment_engine.models.baselines import build_labeled_events, train_tradea
 from sentiment_engine.models.tuning import tune_whipsaw_parameters
 from sentiment_engine.models.whipsaw import build_whipsaw_report, score_whipsaw_events
 from sentiment_engine.live.dashboard import build_dashboard
-from sentiment_engine.live.signal_engine import latest_signal_from_scores
+from sentiment_engine.live.signal_engine import latest_signal_from_scores, signal_from_scored_event
 from sentiment_engine.research.archive_events import build_archive_event_dataset
 from sentiment_engine.research.event_study import build_event_study_report
 from sentiment_engine.research.events import build_event_dataset
@@ -821,7 +821,7 @@ def _tune_whipsaw(config) -> None:
 
 def _dashboard(config) -> None:
     scored = _read_or_build_whipsaw_scores(config)
-    signal = latest_signal_from_scores(scored, config)
+    signal = _latest_signal_with_provider_health(scored, config)
     whipsaw_report = _read_json_report(config.paths.report_dir / "whipsaw_report.json")
     backtest_report = _read_json_report(config.paths.report_dir / "backtest_report.json")
     interpretation_report = _read_optional_json_report(
@@ -872,9 +872,53 @@ def _interpret_results(config) -> None:
 
 def _latest_signal(config) -> None:
     scored = _read_or_build_whipsaw_scores(config)
-    signal = latest_signal_from_scores(scored, config)
+    signal = _latest_signal_with_provider_health(scored, config)
     write_json(config.paths.report_dir / "latest_signal.json", signal.model_dump(mode="json"))
     print(f"latest signal: {signal.direction_signal} / {signal.kill_switch['action']}")
+
+
+def _latest_signal_with_provider_health(scored, config):
+    if scored.empty:
+        return latest_signal_from_scores(scored, config)
+    latest = scored.sort_values("received_at_utc").iloc[-1]
+    return signal_from_scored_event(
+        latest,
+        config,
+        provider_stale=_provider_stale_from_reports(config),
+    )
+
+
+def _provider_stale_from_reports(config) -> bool:
+    posts_cfg = config.sources.get("posts", {})
+    browser_enabled = bool(posts_cfg.get("truthsocial_browser", {}).get("enabled", False))
+    provider_enabled = bool(posts_cfg.get("live_provider", {}).get("enabled", False))
+    if not browser_enabled and not provider_enabled:
+        return False
+
+    if browser_enabled:
+        report = _read_optional_json_report(
+            config.paths.report_dir / "truthsocial_browser_scraper_report.json"
+        )
+        if report is None:
+            return True
+        if report.get("is_stale") is True or report.get("schema_drift_detected") is True:
+            return True
+        if report.get("auth_status") not in {"authenticated", "fixture"}:
+            return True
+
+    if provider_enabled:
+        report = _read_optional_json_report(
+            config.paths.report_dir / "provider_posts_freshness_report.json"
+        )
+        if report is None:
+            return True
+        local = report.get("local_provider") or {}
+        if report.get("is_http_ok") is False or report.get("is_stale_by_post_time") is True:
+            return True
+        if local.get("schema_drift_detected") is True:
+            return True
+
+    return False
 
 
 def _run_full(config, config_path: str) -> None:
