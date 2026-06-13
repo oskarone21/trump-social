@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 import os
+import time
 from pathlib import Path
 
 from sentiment_engine.config import ensure_output_dirs, load_config
@@ -38,6 +39,15 @@ from sentiment_engine.ingestion.posts_external_provider import (
     audit_truthsocial_provider_posts,
     load_truthsocial_provider_posts,
     truthsocial_provider_posts_to_frame,
+)
+from sentiment_engine.ingestion.truthsocial_browser import (
+    DEFAULT_CANONICAL_OUT,
+    DEFAULT_POLL_SECONDS,
+    DEFAULT_REPORT_OUT,
+    DEFAULT_STALE_AFTER_SECONDS,
+    BrowserScraperSettings,
+    run_truthsocial_browser_scrape_once,
+    run_truthsocial_fixture_scrape,
 )
 from sentiment_engine.ingestion.provider_monitor import (
     DEFAULT_STALE_AFTER_MINUTES,
@@ -93,6 +103,18 @@ def main(argv: list[str] | None = None) -> None:
     )
     provider_parser.add_argument("--out", default=None)
     provider_parser.add_argument("--limit", type=int, default=None)
+    browser_parser = subparsers.add_parser("scrape-truthsocial-live")
+    mode_group = browser_parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--once", action="store_true")
+    mode_group.add_argument("--watch", action="store_true")
+    browser_parser.add_argument("--fixture", default=None)
+    browser_parser.add_argument("--max-iterations", type=int, default=None)
+    browser_parser.add_argument("--poll-seconds", type=int, default=None)
+    browser_parser.add_argument("--stale-after-seconds", type=int, default=None)
+    browser_parser.add_argument("--storage-state", default=None)
+    browser_parser.add_argument("--out", default=None)
+    browser_parser.add_argument("--report-out", default=None)
+    browser_parser.add_argument("--headful", action="store_true")
     trumpstruth_parser = subparsers.add_parser("ingest-trumpstruth-feed")
     trumpstruth_parser.add_argument("--url", default="https://www.trumpstruth.org/feed")
     trumpstruth_parser.add_argument(
@@ -208,6 +230,19 @@ def main(argv: list[str] | None = None) -> None:
             api_key_header=args.api_key_header,
             headers=args.header,
             out=args.out,
+        )
+    elif args.command == "scrape-truthsocial-live":
+        _scrape_truthsocial_live(
+            config,
+            fixture=args.fixture,
+            watch=args.watch,
+            max_iterations=args.max_iterations,
+            poll_seconds=args.poll_seconds,
+            stale_after_seconds=args.stale_after_seconds,
+            storage_state=args.storage_state,
+            out=args.out,
+            report_out=args.report_out,
+            headless=not args.headful,
         )
     elif args.command == "ingest-trumpstruth-feed":
         _ingest_trumpstruth_feed(
@@ -357,6 +392,69 @@ def _ingest_provider_posts(
         ),
     )
     print(f"ingested {len(posts)} posts from provider {provider_name} source {source}")
+
+
+def _scrape_truthsocial_live(
+    config,
+    *,
+    fixture: str | None,
+    watch: bool,
+    max_iterations: int | None,
+    poll_seconds: int | None,
+    stale_after_seconds: int | None,
+    storage_state: str | None,
+    out: str | None,
+    report_out: str | None,
+    headless: bool,
+) -> None:
+    scraper_cfg = config.sources["posts"].get("truthsocial_browser", {})
+    settings = BrowserScraperSettings(
+        profile_url=str(scraper_cfg.get("profile_url", "https://truthsocial.com/@realDonaldTrump")),
+        account_id=str(scraper_cfg.get("account_id", "107780257626128497")),
+        source_name=str(scraper_cfg.get("source_name", "truthsocial_browser_live")),
+        storage_state_path=Path(
+            storage_state
+            or scraper_cfg.get(
+                "storage_state_path",
+                "data/interim/truthsocial_browser_storage_state.json",
+            )
+        ),
+        username_env=str(scraper_cfg.get("username_env", "TRUTHSOCIAL_USERNAME")),
+        password_env=str(scraper_cfg.get("password_env", "TRUTHSOCIAL_PASSWORD")),
+        totp_secret_env=str(scraper_cfg.get("totp_secret_env", "TRUTHSOCIAL_TOTP_SECRET")),
+        poll_seconds=int(
+            poll_seconds
+            if poll_seconds is not None
+            else scraper_cfg.get("poll_seconds", DEFAULT_POLL_SECONDS)
+        ),
+        stale_after_seconds=int(
+            stale_after_seconds
+            if stale_after_seconds is not None
+            else scraper_cfg.get("stale_after_seconds", DEFAULT_STALE_AFTER_SECONDS)
+        ),
+        canonical_out=Path(out) if out else DEFAULT_CANONICAL_OUT,
+        report_out=Path(report_out) if report_out else DEFAULT_REPORT_OUT,
+        headless=headless,
+    )
+    iterations = max_iterations if max_iterations is not None else (None if watch else 1)
+    completed = 0
+    while iterations is None or completed < iterations:
+        result = (
+            run_truthsocial_fixture_scrape(fixture_path=fixture, settings=settings)
+            if fixture
+            else run_truthsocial_browser_scrape_once(settings=settings)
+        )
+        print(
+            "truthsocial browser scrape: "
+            f"auth={result.report['auth_status']}, stale={result.report['is_stale']}, "
+            f"raw_rows={result.report['raw_rows_seen']}, "
+            f"canonical_rows={result.report['canonical_rows_written']}, "
+            f"out={result.canonical_out}"
+        )
+        completed += 1
+        if iterations is not None and completed >= iterations:
+            break
+        time.sleep(settings.poll_seconds)
 
 
 def _build_provider_headers(
