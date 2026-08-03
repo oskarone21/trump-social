@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pandas as pd
+
 from sentiment_engine.config import load_config
 from sentiment_engine.ingestion.market_csv import load_market_csv
 from sentiment_engine.ingestion.posts_fixture import load_fixture_posts
@@ -27,8 +29,13 @@ def test_walk_forward_report_uses_chronological_embargoed_folds(tmp_path) -> Non
     assert report["status"] == "evaluated"
     assert report["fold_count"] == 4
     assert report["split_method"] == "expanding_walk_forward_with_row_embargo"
+    assert report["embargo_minutes"] == 30
     assert report["folds"][0]["train_rows"] == 3
     assert report["folds"][0]["test_rows"] == 1
+    for fold in report["folds"]:
+        train_end = pd.Timestamp(fold["train_end_utc"])
+        test_start = pd.Timestamp(fold["test_start_utc"])
+        assert train_end <= test_start - pd.Timedelta(minutes=30)
     assert report["model_summary"]["tfidf_logreg"]["status"] == "evaluated"
     assert report["model_summary"]["tfidf_logreg"]["prediction_count"] == 4
     assert (tmp_path / "reports" / "walk_forward_report.json").exists()

@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from sentiment_engine.utils.io import write_json
+from sentiment_engine.utils.io import write_json, write_text
 
 SHADOW_REPORT_JSON = "shadow_report.json"
 SHADOW_REPORT_MARKDOWN = "shadow_report.md"
@@ -56,9 +56,7 @@ def write_shadow_report(
         interpretation_report=interpretation_report,
     )
     write_json(report_dir / SHADOW_REPORT_JSON, report)
-    (report_dir / SHADOW_REPORT_MARKDOWN).write_text(
-        render_shadow_markdown(report), encoding="utf-8"
-    )
+    write_text(report_dir / SHADOW_REPORT_MARKDOWN, render_shadow_markdown(report))
     return report
 
 

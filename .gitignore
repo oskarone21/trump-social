@@ -13,6 +13,7 @@ data/interim/*
 data/processed/*
 reports/*
 models/*
+data/market/
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep

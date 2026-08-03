@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from sentiment_engine.cli import _ensure_label_queue_rule_hints
 from sentiment_engine.config import load_config
 from sentiment_engine.ingestion.market_csv import load_market_csv
 from sentiment_engine.ingestion.posts_fixture import load_fixture_posts
@@ -29,6 +30,20 @@ def test_label_queue_excludes_post_event_target_columns() -> None:
     assert "market_whipsaw_flag" not in queue.columns
     assert queue["human_sentiment_label"].eq("").all()
     assert queue["rule_sentiment_label"].ne("").all()
+
+
+def test_label_queue_export_adds_rule_hints_for_raw_events() -> None:
+    config = load_config("configs/research.yaml")
+    posts = load_fixture_posts(config.paths.posts_fixture)
+    bars = load_market_csv(config.paths.market_fixture)
+    events = build_event_dataset(posts, bars, config).events
+
+    hinted = _ensure_label_queue_rule_hints(events)
+    queue = build_label_queue(hinted, limit=3)
+
+    assert queue["rule_sentiment_label"].ne("").all()
+    assert queue["rule_tradeability_label"].ne("").all()
+    assert queue["rule_topic_labels"].ne("").all()
 
 
 def test_reviewed_labels_validate_and_report_agreement(tmp_path) -> None:

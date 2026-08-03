@@ -35,7 +35,7 @@ def score_whipsaw_events(labeled_events: pd.DataFrame, config: EngineConfig) -> 
     enriched = add_empirical_timing_features(add_burst_features(labeled_events))
     enriched = enriched.sort_values("received_at_utc").reset_index(drop=True)
     records: list[dict[str, Any]] = []
-    timestamps = pd.to_datetime(enriched["received_at_utc"], utc=True)
+    timestamps = pd.to_datetime(enriched["received_at_utc"], format="mixed", utc=True)
     for idx, row in enriched.iterrows():
         window_start = timestamps.iloc[idx] - pd.Timedelta(minutes=config.windows.contradiction_window_minutes)
         prior = enriched[(timestamps < timestamps.iloc[idx]) & (timestamps >= window_start)]
@@ -159,7 +159,7 @@ def _reason(components: dict[str, float], contradicting_ids: list[str]) -> str:
 
 def _as_topic_list(value: object) -> list[str]:
     if isinstance(value, str):
-        return [value]
+        return [topic.strip() for topic in value.split("|") if topic.strip()]
     if isinstance(value, Iterable):
         return [str(item) for item in value]
     return []
@@ -183,6 +183,8 @@ def _market_relevance_score(topics: list[str]) -> float:
         tx.TOPIC_IRAN_ENERGY,
         tx.TOPIC_MIDDLE_EAST,
         tx.TOPIC_EQUITIES,
+        tx.TOPIC_FX_USD,
+        tx.TOPIC_GOLD_METALS,
         tx.TOPIC_TECH,
         tx.TOPIC_TAX_FISCAL,
     }

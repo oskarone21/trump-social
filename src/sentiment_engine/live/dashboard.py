@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from sentiment_engine.schemas import SignalRecord
-from sentiment_engine.utils.io import write_json
+from sentiment_engine.utils.io import write_json, write_text
 
 
 def build_dashboard(
@@ -52,7 +52,8 @@ def build_dashboard(
     interpretation_html = _interpretation_section(
         interpretation_report, provider_freshness_report
     )
-    output.write_text(
+    write_text(
+        output,
         f"""<!doctype html>
 <html lang="en">
 <head>
@@ -116,7 +117,6 @@ def build_dashboard(
 </body>
 </html>
 """,
-        encoding="utf-8",
     )
     return output
 

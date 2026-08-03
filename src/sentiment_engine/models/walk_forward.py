@@ -21,6 +21,7 @@ DEFAULT_MIN_TRAIN_ROWS = 3
 DEFAULT_TEST_WINDOW_ROWS = 1
 DEFAULT_STEP_ROWS = 1
 DEFAULT_EMBARGO_ROWS = 1
+DEFAULT_EMBARGO_MINUTES = 30
 
 
 def evaluate_walk_forward_classifiers(
@@ -32,6 +33,7 @@ def evaluate_walk_forward_classifiers(
     test_window_rows: int = DEFAULT_TEST_WINDOW_ROWS,
     step_rows: int = DEFAULT_STEP_ROWS,
     embargo_rows: int = DEFAULT_EMBARGO_ROWS,
+    embargo_minutes: int = DEFAULT_EMBARGO_MINUTES,
     tfidf_max_features: int = 250,
 ) -> dict[str, Any]:
     ordered = labeled_events.sort_values(TEMPORAL_COLUMN).reset_index(drop=True)
@@ -41,6 +43,7 @@ def evaluate_walk_forward_classifiers(
         test_window_rows=test_window_rows,
         step_rows=step_rows,
         embargo_rows=embargo_rows,
+        embargo_minutes=embargo_minutes,
     )
     model_predictions = {
         "naive": [],
@@ -86,13 +89,13 @@ def evaluate_walk_forward_classifiers(
         "test_window_rows": int(test_window_rows),
         "step_rows": int(step_rows),
         "embargo_rows": int(embargo_rows),
+        "embargo_minutes": int(embargo_minutes),
         "target_labels": target_labels,
         "model_summary": _model_summary(model_predictions, fold_reports, target_labels),
         "folds": fold_reports,
         "methodology_notes": [
             "Rows are sorted by received_at_utc before splitting.",
-            "The embargo is row-based in this fixture report; real data should use a "
-            "time-based purge at least as large as the maximum target horizon.",
+            "Training rows are purged if their maximum target horizon can overlap the test fold.",
             "Fixture fold metrics are validation plumbing checks, not evidence of edge.",
         ],
     }
@@ -108,19 +111,28 @@ def _walk_forward_folds(
     test_window_rows: int,
     step_rows: int,
     embargo_rows: int,
+    embargo_minutes: int,
 ) -> list[tuple[int, pd.DataFrame, pd.DataFrame]]:
     folds = []
     fold_number = 1
     train_end = min_train_rows
+    timestamps = pd.to_datetime(ordered[TEMPORAL_COLUMN], format="mixed", utc=True)
+    embargo_delta = pd.Timedelta(minutes=embargo_minutes)
     while train_end + embargo_rows < len(ordered):
         test_start = train_end + embargo_rows
         test_end = min(test_start + test_window_rows, len(ordered))
         if test_end <= test_start:
             break
+        train_cutoff = timestamps.iloc[test_start] - embargo_delta
+        train_mask = timestamps.iloc[:train_end] <= train_cutoff
+        train = ordered.iloc[:train_end].loc[train_mask.to_numpy()].copy()
+        if len(train) < min_train_rows:
+            train_end += step_rows
+            continue
         folds.append(
             (
                 fold_number,
-                ordered.iloc[:train_end].copy(),
+                train,
                 ordered.iloc[test_start:test_end].copy(),
             )
         )

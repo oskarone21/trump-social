@@ -60,11 +60,7 @@ def signal_from_scored_event(
         tradeability_label=_tradeability(payload, risk_level, provider_stale, market_data_stale),
         direction_signal=direction_signal,
         p_direction=_direction_probabilities(payload),
-        expected_delta_ticks={
-            "5m": float(payload.get("nq_delta_5m_ticks", 0.0)),
-            "15m": float(payload.get("nq_delta_15m_ticks", 0.0)),
-            "30m": float(payload.get("nq_delta_30m_ticks", 0.0)),
-        },
+        expected_delta_ticks=_expected_delta_ticks(payload),
         risk={
             "whipsaw_risk_level": risk_level,
             "whipsaw_score": float(payload.get("whipsaw_score", 0.0)),
@@ -170,15 +166,24 @@ def _tradeability(
 def _direction_probabilities(payload: dict[str, Any]) -> dict[str, float]:
     output: dict[str, float] = {}
     for horizon in (5, 15, 30):
-        delta = float(payload.get(f"nq_delta_{horizon}m_ticks", 0.0))
-        up = min(0.85, max(0.05, 0.33 + delta / 120.0))
-        down = min(0.85, max(0.05, 0.33 - delta / 120.0))
-        flat = max(0.05, 1.0 - up - down)
+        up = float(payload.get(f"p_up_{horizon}m", 1.0 / 3.0))
+        down = float(payload.get(f"p_down_{horizon}m", 1.0 / 3.0))
+        flat = float(payload.get(f"p_flat_{horizon}m", 1.0 / 3.0))
         total = up + down + flat
+        if total <= 0:
+            up = down = flat = 1.0 / 3.0
+            total = 1.0
         output[f"up_{horizon}m"] = round(up / total, 6)
         output[f"down_{horizon}m"] = round(down / total, 6)
         output[f"flat_{horizon}m"] = round(flat / total, 6)
     return output
+
+
+def _expected_delta_ticks(payload: dict[str, Any]) -> dict[str, float]:
+    return {
+        f"{horizon}m": float(payload.get(f"expected_delta_{horizon}m_ticks", 0.0))
+        for horizon in (5, 15, 30)
+    }
 
 
 def _feed_lag_ms(payload: dict[str, Any]) -> int:

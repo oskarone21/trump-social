@@ -326,7 +326,7 @@ def _parse_timestamp(value: Any) -> datetime:
     try:
         parsed = parse_utc(value)
         return parsed
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         if isinstance(value, (int, float)):
             seconds = value / 1000 if value > 10_000_000_000 else value
             return pd.Timestamp.fromtimestamp(seconds, tz="UTC").to_pydatetime()

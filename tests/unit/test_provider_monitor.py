@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from urllib.error import URLError
 
 from sentiment_engine.ingestion.posts_external_provider import truthsocial_provider_posts_to_frame
 from sentiment_engine.ingestion.posts_external_provider import (
     load_truthsocial_provider_posts,
 )
-from sentiment_engine.ingestion.provider_monitor import build_provider_freshness_report
+from sentiment_engine.ingestion.provider_monitor import (
+    build_provider_freshness_report,
+    fetch_remote_provider_metadata,
+)
 
 
 def _fixture_provider_posts():
@@ -37,6 +41,21 @@ def test_provider_freshness_audits_local_snapshot(tmp_path) -> None:
     assert report["local_provider"]["required_columns_present"] is True
     assert report["local_provider"]["schema_drift_detected"] is False
     assert report["is_stale_by_post_time"] is False
+
+
+def test_provider_metadata_reports_network_failure(monkeypatch) -> None:
+    def fake_urlopen(_request, timeout=30):
+        raise URLError("dns failure")
+
+    monkeypatch.setattr("sentiment_engine.ingestion.provider_monitor.urlopen", fake_urlopen)
+
+    metadata = fetch_remote_provider_metadata(
+        "https://example.test/provider.json",
+        checked_at_utc=datetime(2026, 1, 10, 10, 30, tzinfo=UTC),
+    )
+
+    assert metadata["http_status"] is None
+    assert "URLError" in metadata["error"]
 
 
 def test_provider_freshness_detects_stale_snapshot(tmp_path) -> None:

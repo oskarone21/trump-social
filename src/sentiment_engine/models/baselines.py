@@ -15,7 +15,7 @@ from sklearn.svm import SVC
 
 from sentiment_engine.features.text_features import enrich_with_text_features
 from sentiment_engine.models.metadata import model_metadata
-from sentiment_engine.utils.io import write_dataframe, write_json
+from sentiment_engine.utils.io import write_dataframe, write_json, write_with_temporary_path
 
 TARGET_COLUMN = "tradeability_label"
 TEXT_COLUMN = "text_clean"
@@ -140,9 +140,15 @@ def train_tradeability_baselines(
     write_json(report_dir / CLASSIFIER_REPORT_NAME, report)
     write_dataframe(labeled_events, report_dir / "labeled_events_snapshot.csv")
     if tfidf_model is not None:
-        joblib.dump(tfidf_model, model_dir / TFIDF_MODEL_NAME)
+        write_with_temporary_path(
+            model_dir / TFIDF_MODEL_NAME,
+            lambda temporary: joblib.dump(tfidf_model, temporary),
+        )
     if svm_model is not None:
-        joblib.dump(svm_model, model_dir / SVM_MODEL_NAME)
+        write_with_temporary_path(
+            model_dir / SVM_MODEL_NAME,
+            lambda temporary: joblib.dump(svm_model, temporary),
+        )
     write_json(
         model_dir / "tfidf_tradeability_baseline.metadata.json",
         model_metadata(
@@ -191,7 +197,7 @@ def train_lightgbm_baseline(
         write_json(report_dir / LIGHTGBM_REPORT_NAME, report)
         return report
 
-    label_encoder = _label_encoder(all_labeled_events)
+    label_encoder = _label_encoder(train)
     train_features, test_features, vectorizer = _text_context_matrices(
         train, test, tfidf_max_features
     )
@@ -230,9 +236,12 @@ def train_lightgbm_baseline(
     report_dir.mkdir(parents=True, exist_ok=True)
     model_dir.mkdir(parents=True, exist_ok=True)
     write_json(report_dir / LIGHTGBM_REPORT_NAME, report)
-    joblib.dump(
-        {"model": model, "label_encoder": label_encoder, "vectorizer": vectorizer},
+    write_with_temporary_path(
         model_dir / LIGHTGBM_MODEL_NAME,
+        lambda temporary: joblib.dump(
+            {"model": model, "label_encoder": label_encoder, "vectorizer": vectorizer},
+            temporary,
+        ),
     )
     write_json(
         model_dir / "lightgbm_tradeability_baseline.metadata.json",
@@ -275,7 +284,7 @@ def train_neural_text_baseline(
 
     torch.manual_seed(seed)
     torch.set_num_threads(1)
-    label_encoder = _label_encoder(all_labeled_events)
+    label_encoder = _label_encoder(train)
     train_features, test_features, vectorizer = _text_context_matrices(
         train, test, tfidf_max_features
     )
@@ -332,14 +341,17 @@ def train_neural_text_baseline(
     report_dir.mkdir(parents=True, exist_ok=True)
     model_dir.mkdir(parents=True, exist_ok=True)
     write_json(report_dir / NEURAL_REPORT_NAME, report)
-    torch.save(
-        {
-            "state_dict": model.state_dict(),
-            "label_classes": label_encoder.classes_.tolist(),
-            "vectorizer_vocabulary": vectorizer.vocabulary_,
-            "context_feature_columns": CONTEXT_FEATURE_COLUMNS,
-        },
+    write_with_temporary_path(
         model_dir / NEURAL_MODEL_NAME,
+        lambda temporary: torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "label_classes": label_encoder.classes_.tolist(),
+                "vectorizer_vocabulary": vectorizer.vocabulary_,
+                "context_feature_columns": CONTEXT_FEATURE_COLUMNS,
+            },
+            temporary,
+        ),
     )
     write_json(
         model_dir / "neural_tfidf_mlp.metadata.json",

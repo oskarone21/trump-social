@@ -45,6 +45,19 @@ def test_target_alignment_uses_first_bar_after_received_timestamp() -> None:
     assert bool(first["overlaps_prior_event_window"]) is False
 
 
+def test_event_clustering_accepts_mixed_iso_timestamp_precision() -> None:
+    config = load_config("configs/research.yaml")
+    posts = load_fixture_posts(config.paths.posts_fixture)
+    posts[0] = posts[0].model_copy(
+        update={"received_at_utc": posts[0].received_at_utc.replace(microsecond=123000)}
+    )
+    bars = load_market_csv(config.paths.market_fixture)
+    result = build_event_dataset(posts, bars, config)
+
+    assert len(result.events) == 8
+    assert result.events["event_cluster_id"].nunique() == 4
+
+
 def test_macro_blackout_uses_received_timestamp_and_config_window() -> None:
     config = load_config("configs/research.yaml")
     posts = load_fixture_posts(config.paths.posts_fixture)

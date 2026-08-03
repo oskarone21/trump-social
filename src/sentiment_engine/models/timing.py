@@ -7,14 +7,11 @@ MINUTES_PER_DAY = 24 * 60
 
 def add_empirical_timing_features(events: pd.DataFrame) -> pd.DataFrame:
     ordered = events.sort_values("received_at_utc").reset_index(drop=True).copy()
-    timestamps = pd.to_datetime(ordered["received_at_utc"], utc=True)
-    next_timestamps = timestamps.shift(-1)
+    timestamps = pd.to_datetime(ordered["received_at_utc"], format="mixed", utc=True)
     prior_timestamps = timestamps.shift(1)
-    minutes_to_next = (next_timestamps - timestamps).dt.total_seconds() / 60.0
     minutes_since_prior = (timestamps - prior_timestamps).dt.total_seconds() / 60.0
     historical_intervals = minutes_since_prior.dropna().tolist()
     ordered["minutes_since_previous_post"] = minutes_since_prior.fillna(MINUTES_PER_DAY)
-    ordered["actual_minutes_to_next_post"] = minutes_to_next
     for horizon in (15, 30, 60):
         ordered[f"p_next_post_{horizon}m"] = [
             _empirical_probability(historical_intervals[:idx], horizon)

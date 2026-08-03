@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from sentiment_engine.config import load_config
-from sentiment_engine.ingestion.market_csv import audit_market_bars
+from sentiment_engine.ingestion.market_csv import _validate_rows, audit_market_bars
 from sentiment_engine.ingestion.market_files import DATABENTO_OHLCV_SOURCE, load_market_file
 from sentiment_engine.ingestion.posts_fixture import load_fixture_posts, posts_to_frame
 from sentiment_engine.research.archive_events import build_archive_event_dataset
@@ -47,6 +48,71 @@ def test_databento_style_ohlcv_export_normalises_to_market_bars(tmp_path) -> Non
     assert audit["source_names"] == [DATABENTO_OHLCV_SOURCE]
 
 
+def test_capitalized_ohlcv_export_normalises_to_market_bars(tmp_path) -> None:
+    source = tmp_path / "nq_ohlcv_capitalized.csv"
+    pd.DataFrame(
+        [
+            {
+                "ts_event": "2026-01-02T14:31:00Z",
+                "Open": 20000.0,
+                "High": 20002.0,
+                "Low": 19999.0,
+                "Close": 20001.0,
+                "Volume": 10,
+            },
+            {
+                "ts_event": "2026-01-02T14:32:00Z",
+                "Open": 20001.0,
+                "High": 20003.0,
+                "Low": 20000.0,
+                "Close": 20002.0,
+                "Volume": 12,
+            },
+        ]
+    ).to_csv(source, index=False)
+
+    bars = load_market_file(source, source_name="local_nq_1min_clean", symbol_root="NQ")
+    audit = audit_market_bars(bars)
+
+    assert len(bars) == 2
+    assert bars.iloc[0]["open"] == 20000.0
+    assert bars.iloc[0]["volume"] == 10
+    assert bars.iloc[0]["contract_symbol"] == "NQ"
+    assert audit["valid_rows"] == 2
+    assert audit["source_names"] == ["local_nq_1min_clean"]
+
+
+def test_price_normalisation_handles_mixed_raw_and_scaled_values(tmp_path) -> None:
+    source = tmp_path / "nq_ohlcv_mixed_prices.csv"
+    pd.DataFrame(
+        [
+            {
+                "ts_event": "2026-01-02T14:31:00Z",
+                "open": 20_000_000_000_000,
+                "high": 20_002_000_000_000,
+                "low": 19_999_000_000_000,
+                "close": 20_001_000_000_000,
+                "vwap": 20_000_500_000_000,
+                "volume": 10,
+            },
+            {
+                "ts_event": "2026-01-02T14:32:00Z",
+                "open": 20001.0,
+                "high": 20003.0,
+                "low": 20000.0,
+                "close": 20002.0,
+                "vwap": 20001.5,
+                "volume": 12,
+            },
+        ]
+    ).to_csv(source, index=False)
+
+    bars = load_market_file(source, source_name=DATABENTO_OHLCV_SOURCE, symbol_root="NQ")
+
+    assert bars["open"].tolist() == [20000.0, 20001.0]
+    assert bars["vwap"].tolist() == [20000.5, 20001.5]
+
+
 def test_market_audit_counts_missing_and_stale_bars() -> None:
     frame = pd.DataFrame(
         [
@@ -64,6 +130,22 @@ def test_market_audit_counts_missing_and_stale_bars() -> None:
     assert audit["gap_count_gt_1m"] == 1
     assert audit["stale_bar_rows"] == 1
     assert audit["zero_volume_rows"] == 2
+
+
+def test_market_validation_rejects_invalid_symbol_root() -> None:
+    frame = pd.DataFrame([_market_row("2026-01-02T14:30:00Z", open_price=20000.0, volume=10)])
+    frame["symbol_root"] = "ES"
+
+    with pytest.raises(ValueError, match="invalid symbol_root"):
+        _validate_rows(frame)
+
+
+def test_market_validation_rejects_invalid_valid_bar_ohlc() -> None:
+    frame = pd.DataFrame([_market_row("2026-01-02T14:30:00Z", open_price=20000.0, volume=10)])
+    frame["high"] = frame["open"] - 1.0
+
+    with pytest.raises(ValueError, match="invalid valid-bar OHLC"):
+        _validate_rows(frame)
 
 
 def test_archive_events_build_from_processed_posts_and_market_bars(tmp_path) -> None:

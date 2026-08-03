@@ -70,6 +70,12 @@ from sentiment_engine.research.events import build_event_dataset
 from sentiment_engine.research.interpretation import write_interpretation_report
 from sentiment_engine.utils.io import write_dataframe, write_json
 
+LABEL_QUEUE_RULE_COLUMNS = [
+    "rule_sentiment_label",
+    "rule_tradeability_label",
+    "rule_topic_labels",
+]
+
 
 def main(argv: list[str] | None = None) -> None:
     raw_args, config_path = _extract_config_arg(
@@ -622,7 +628,9 @@ def _ingest_market_file(
         Path(output_path) if output_path else config.paths.processed_dir / "market_bars.parquet"
     )
     write_dataframe(bars, target)
-    write_json(config.paths.report_dir / "market_ingestion_audit.json", audit_market_bars(bars))
+    audit = audit_market_bars(bars)
+    write_json(config.paths.report_dir / "market_file_ingestion_audit.json", audit)
+    write_json(config.paths.report_dir / "market_ingestion_audit.json", audit)
     print(f"ingested {len(bars)} market bars from {input_path}")
 
 
@@ -744,6 +752,7 @@ def _export_label_queue(
     if not source.exists():
         _label_assist(config)
     events = pd.read_parquet(source)
+    events = _ensure_label_queue_rule_hints(events)
     queue = build_label_queue(events, limit=limit)
     target = Path(output_path) if output_path else config.paths.interim_dir / "label_queue.csv"
     write_dataframe(queue, target)
@@ -757,6 +766,15 @@ def _export_label_queue(
         },
     )
     print(f"exported {len(queue)} label-review rows to {target}")
+
+
+def _ensure_label_queue_rule_hints(events: "pd.DataFrame") -> "pd.DataFrame":
+    missing_rule_columns = [
+        column for column in LABEL_QUEUE_RULE_COLUMNS if column not in events.columns
+    ]
+    if not missing_rule_columns:
+        return events
+    return build_labeled_events(events)
 
 
 def _import_reviewed_labels(

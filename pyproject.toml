@@ -31,7 +31,7 @@ dl = [
   "torch>=2.4",
   "transformers>=4.44"
 ]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [project.scripts]
 sentiment-engine = "sentiment_engine.cli:main"

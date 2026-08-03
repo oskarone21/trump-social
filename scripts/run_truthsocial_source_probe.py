@@ -3,12 +3,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import UTC, datetime
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR / "src"))
+
+from sentiment_engine.utils.io import write_json
 
 
 DEFAULT_OUTPUT_PATH = Path("reports") / "truthsocial_source_probe.json"
@@ -193,7 +199,7 @@ def main() -> None:
         "recommendations": _recommendation([ProbeResult(**r) for r in results]),
     }
 
-    output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_json(output_path, payload)
     print(json.dumps(payload, indent=2))
     print(f"source probe report written: {output_path}")
 

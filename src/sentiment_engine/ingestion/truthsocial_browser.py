@@ -12,13 +12,24 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from pydantic import ValidationError
 
 from sentiment_engine.ingestion.posts_external_provider import (
     normalise_provider_record,
     truthsocial_provider_posts_to_frame,
 )
 from sentiment_engine.schemas import PostRecord
+from sentiment_engine.utils.io import write_dataframe, write_json
 from sentiment_engine.utils.time import isoformat_z
+
+try:
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    PlaywrightError = RuntimeError
+    PlaywrightTimeoutError = TimeoutError
+    sync_playwright = None
 
 TRUTHSOCIAL_BROWSER_PROVIDER = "truthsocial_browser_scraper"
 TRUTHSOCIAL_BROWSER_SOURCE_NAME = "truthsocial_browser_live"
@@ -66,6 +77,10 @@ TOTP_SELECTORS = (
     'input[autocomplete="one-time-code"]',
     'input[type="tel"]',
 )
+PLAYWRIGHT_FAILURES = (PlaywrightError, PlaywrightTimeoutError)
+BROWSER_RECOVERABLE_FAILURES = (*PLAYWRIGHT_FAILURES, RuntimeError, OSError)
+POST_NORMALISATION_FAILURES = (TypeError, ValueError, ValidationError)
+STATUS_FETCH_FAILURES = (*PLAYWRIGHT_FAILURES, TypeError, ValueError, json.JSONDecodeError)
 
 
 @dataclass(frozen=True)
@@ -166,7 +181,7 @@ def run_truthsocial_browser_scrape_once(
     checked_at = checked_at_utc or datetime.now(UTC)
     try:
         raw_rows, auth_status, browser_status, errors = _collect_with_playwright(settings)
-    except Exception as exc:
+    except BROWSER_RECOVERABLE_FAILURES as exc:
         raw_rows = []
         auth_status = AUTH_STATUS_CHALLENGE_OR_LOGIN_FAILED
         browser_status = BROWSER_STATUS_FAILED
@@ -182,7 +197,7 @@ def run_truthsocial_browser_scrape_once(
                 source_provider=settings.source_provider,
                 received_at_utc=checked_at,
             )
-        except Exception as exc:
+        except POST_NORMALISATION_FAILURES as exc:
             schema_errors.append(_safe_error(exc))
 
     return _persist_scrape_result(
@@ -199,14 +214,11 @@ def run_truthsocial_browser_scrape_once(
 def _collect_with_playwright(
     settings: BrowserScraperSettings,
 ) -> tuple[list[dict[str, Any]], str, str, list[str]]:
-    try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:
+    if sync_playwright is None:
         raise RuntimeError(
             "Playwright is not installed. Run: pip install -e \".[scraper]\" "
             "and python -m playwright install chromium"
-        ) from exc
+        )
 
     username = os.getenv(settings.username_env, "").strip()
     password = os.getenv(settings.password_env, "").strip()
@@ -237,7 +249,7 @@ def _collect_with_playwright(
             discovered_url = response.url
             try:
                 payload = response.json()
-            except PlaywrightError as exc:
+            except STATUS_FETCH_FAILURES as exc:
                 errors.append(_safe_error(exc))
                 return
             captured_rows.extend(_rows_from_browser_payload(payload))
@@ -304,7 +316,7 @@ def _login(page, context, settings: BrowserScraperSettings) -> tuple[bool, list[
         settings.storage_state_path.parent.mkdir(parents=True, exist_ok=True)
         context.storage_state(path=str(settings.storage_state_path))
         return not _page_has_challenge(page), errors
-    except Exception as exc:
+    except BROWSER_RECOVERABLE_FAILURES as exc:
         return False, [*_safe_error_list(errors), _safe_error(exc)]
 
 
@@ -315,7 +327,7 @@ def _fill_first(page, selectors: tuple[str, ...], value: str, *, required: bool 
             if locator.count() > 0:
                 locator.fill(value, timeout=5_000)
                 return True
-        except Exception:
+        except PLAYWRIGHT_FAILURES:
             continue
     if required:
         raise RuntimeError(f"Could not find login field among selectors: {selectors}")
@@ -330,7 +342,7 @@ def _click_submit(page) -> None:
             if locator.count() > 0:
                 locator.click(timeout=5_000)
                 return
-        except Exception:
+        except PLAYWRIGHT_FAILURES:
             continue
     page.keyboard.press("Enter")
 
@@ -351,7 +363,7 @@ def _fetch_statuses_in_page(page, url: str) -> tuple[Any | None, str | None]:
         if not (200 <= int(result["status"]) < 300):
             return None, f"status_fetch_http_{result['status']}"
         return json.loads(result["text"]), None
-    except Exception as exc:
+    except STATUS_FETCH_FAILURES as exc:
         return None, _safe_error(exc)
 
 
@@ -371,11 +383,7 @@ def _persist_scrape_result(
 
     existing_records = _read_existing_records(settings.canonical_out)
     merged_records = _dedupe_records([*existing_records, *records])
-    settings.canonical_out.parent.mkdir(parents=True, exist_ok=True)
-    truthsocial_provider_posts_to_frame(merged_records).to_parquet(
-        settings.canonical_out,
-        index=False,
-    )
+    write_dataframe(truthsocial_provider_posts_to_frame(merged_records), settings.canonical_out)
 
     report = build_truthsocial_browser_scraper_report(
         records=merged_records,
@@ -386,8 +394,7 @@ def _persist_scrape_result(
         checked_at_utc=checked_at_utc,
         errors=errors,
     )
-    settings.report_out.parent.mkdir(parents=True, exist_ok=True)
-    settings.report_out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
+    write_json(settings.report_out, report)
     return ScrapeResult(
         records=merged_records,
         raw_rows=raw_rows,
@@ -551,11 +558,11 @@ def _looks_like_status_url(url: str) -> bool:
 def _page_has_challenge(page) -> bool:
     try:
         body = page.locator("body").inner_text(timeout=3_000).lower()
-    except Exception:
+    except PLAYWRIGHT_FAILURES:
         body = ""
     try:
         title = page.title().lower()
-    except Exception:
+    except PLAYWRIGHT_FAILURES:
         title = ""
     combined = f"{title} {body}"
     return any(marker in combined for marker in HTML_CHALLENGE_MARKERS)

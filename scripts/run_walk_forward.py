@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--test-window-rows", type=int, default=1)
     parser.add_argument("--step-rows", type=int, default=1)
     parser.add_argument("--embargo-rows", type=int, default=1)
+    parser.add_argument("--embargo-minutes", type=int, default=30)
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -40,6 +41,7 @@ def main() -> None:
         test_window_rows=args.test_window_rows,
         step_rows=args.step_rows,
         embargo_rows=args.embargo_rows,
+        embargo_minutes=args.embargo_minutes,
     )
     print(
         "walk-forward complete: "

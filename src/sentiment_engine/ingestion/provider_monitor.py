@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from http.client import HTTPException
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -61,7 +62,7 @@ def fetch_remote_provider_metadata(
     except URLError as exc:
         error = f"{type(exc).__name__}: {exc.reason}"
         response_status = None
-    except Exception as exc:
+    except (HTTPException, OSError, TimeoutError, ValueError) as exc:
         error = f"{type(exc).__name__}: {exc}"
     else:
         method = "HEAD"
@@ -76,7 +77,7 @@ def fetch_remote_provider_metadata(
         except HTTPError as exc:
             response_status = exc.code
             error = f"{type(exc).__name__}: {exc.code}"
-        except Exception as exc:
+        except (HTTPException, OSError, TimeoutError, ValueError) as exc:
             error = f"{type(exc).__name__}: {exc}"
 
     return {

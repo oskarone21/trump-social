@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sentiment_engine.utils.io import write_json
+from sentiment_engine.utils.io import write_json, write_text
 
 MIN_HUMAN_LABELS_FOR_DL = 500
 FIXTURE_SOURCE_PREFIX = "fixture"
@@ -38,10 +38,7 @@ def write_interpretation_report(
 ) -> dict[str, Any]:
     payload = build_interpretation_report(reports)
     write_json(report_dir / INTERPRETATION_JSON, payload)
-    (report_dir / INTERPRETATION_MARKDOWN).write_text(
-        render_interpretation_markdown(payload),
-        encoding="utf-8",
-    )
+    write_text(report_dir / INTERPRETATION_MARKDOWN, render_interpretation_markdown(payload))
     return payload
 
 

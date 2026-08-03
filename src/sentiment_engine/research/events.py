@@ -27,17 +27,24 @@ def build_event_dataset(
         .sort_values("ts_open_utc")
         .reset_index(drop=True)
     )
+    bar_times = valid_bars["ts_open_utc"]
     records: list[dict[str, object]] = []
     skipped: list[dict[str, str]] = []
     macro_calendar = _load_macro_calendar(config)
     for post in posts:
-        future_bars = valid_bars[valid_bars["ts_open_utc"] >= pd.Timestamp(post.received_at_utc)]
-        if future_bars.empty:
+        event_index = int(bar_times.searchsorted(pd.Timestamp(post.received_at_utc), side="left"))
+        if event_index >= len(valid_bars):
             skipped.append({"post_id": post.post_id, "reason": "no_market_bar_after_received_at"})
             continue
-        event_bar = future_bars.iloc[0]
+        event_bar = valid_bars.iloc[event_index]
         event_ts = event_bar["ts_open_utc"]
-        horizon_values = _horizon_values(valid_bars, event_ts, float(event_bar["open"]), config)
+        horizon_values = _horizon_values(
+            valid_bars,
+            bar_times,
+            event_index,
+            float(event_bar["open"]),
+            config,
+        )
         if horizon_values is None:
             skipped.append({"post_id": post.post_id, "reason": "insufficient_forward_bars"})
             continue
@@ -68,7 +75,9 @@ def _add_event_clusters(events: pd.DataFrame, config: EngineConfig) -> pd.DataFr
     max_horizon = max(config.windows.impact_horizons_minutes)
     overlap_gap = pd.Timedelta(minutes=max_horizon)
     clustered = events.copy()
-    clustered["_received_ts"] = pd.to_datetime(clustered["received_at_utc"], utc=True)
+    clustered["_received_ts"] = pd.to_datetime(
+        clustered["received_at_utc"], format="mixed", utc=True
+    )
     clustered = clustered.sort_values(["_received_ts", "post_id"]).reset_index(drop=True)
     previous_gap = clustered["_received_ts"].diff()
     next_gap = clustered["_received_ts"].shift(-1) - clustered["_received_ts"]
@@ -145,20 +154,25 @@ def _empty_macro_context() -> dict[str, object]:
 
 
 def _horizon_values(
-    bars: pd.DataFrame, event_ts: pd.Timestamp, base_price: float, config: EngineConfig
+    bars: pd.DataFrame,
+    bar_times: pd.Series,
+    event_index: int,
+    base_price: float,
+    config: EngineConfig,
 ) -> dict[str, object] | None:
     tick_size = config.instruments.tick_size
+    event_ts = pd.Timestamp(bar_times.iloc[event_index])
     values: dict[str, object] = {}
     for horizon in config.windows.impact_horizons_minutes:
         target_ts = event_ts + pd.Timedelta(minutes=horizon)
-        target_bars = bars[bars["ts_open_utc"] >= target_ts]
-        if target_bars.empty:
+        target_index = int(bar_times.searchsorted(target_ts, side="left"))
+        if target_index >= len(bars):
             return None
-        target_close = float(target_bars.iloc[0]["close"])
+        target_close = float(bars.iloc[target_index]["close"])
         delta_ticks = round((target_close - base_price) / tick_size, 4)
         values[f"nq_delta_{horizon}m_ticks"] = delta_ticks
         values[f"nq_direction_{horizon}m"] = _direction(delta_ticks)
-        window = bars[(bars["ts_open_utc"] >= event_ts) & (bars["ts_open_utc"] <= target_ts)]
+        window = bars.iloc[event_index : target_index + 1]
         mfe_ticks, mae_ticks = _excursion_ticks(window, base_price, tick_size)
         values[f"max_favourable_excursion_{horizon}m_ticks"] = mfe_ticks
         values[f"max_adverse_excursion_{horizon}m_ticks"] = mae_ticks
@@ -167,13 +181,11 @@ def _horizon_values(
             window, tick_size
         )
 
-    full_window = bars[
-        (bars["ts_open_utc"] >= event_ts)
-        & (
-            bars["ts_open_utc"]
-            <= event_ts + pd.Timedelta(minutes=config.windows.whipsaw_evaluation_window_minutes)
-        )
-    ]
+    full_window_end = event_ts + pd.Timedelta(
+        minutes=config.windows.whipsaw_evaluation_window_minutes
+    )
+    full_window_end_index = int(bar_times.searchsorted(full_window_end, side="right"))
+    full_window = bars.iloc[event_index:full_window_end_index]
     if full_window.empty:
         return None
     whipsaw = _market_whipsaw_flag(full_window, base_price, tick_size, config)

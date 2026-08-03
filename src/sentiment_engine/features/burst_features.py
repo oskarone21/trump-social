@@ -9,7 +9,7 @@ BURST_WINDOWS_MINUTES = [5, 15, 30, 60, 240]
 
 def add_burst_features(events: pd.DataFrame) -> pd.DataFrame:
     ordered = events.sort_values("received_at_utc").reset_index(drop=True).copy()
-    timestamps = pd.to_datetime(ordered["received_at_utc"], utc=True)
+    timestamps = pd.to_datetime(ordered["received_at_utc"], format="mixed", utc=True)
     for window in BURST_WINDOWS_MINUTES:
         counts = []
         topic_entropy = []

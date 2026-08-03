@@ -13,6 +13,13 @@ TIMESTAMP_ALIASES = ["ts_open_utc", "ts_event", "timestamp", "datetime", "time"]
 PRICE_COLUMNS = ["open", "high", "low", "close"]
 BOOLEAN_COLUMNS = ["is_rth", "is_rollover_period", "is_holiday_session", "is_valid_bar"]
 NANO_PRICE_THRESHOLD = 1_000_000_000
+OHLCV_COLUMN_ALIASES = {
+    "open": ["Open"],
+    "high": ["High"],
+    "low": ["Low"],
+    "close": ["Close"],
+    "volume": ["Volume"],
+}
 
 
 def load_market_file(
@@ -41,7 +48,7 @@ def normalise_market_frame(
     contract_symbol: str | None = None,
     continuous_symbol: str | None = None,
 ) -> pd.DataFrame:
-    raw = _with_timestamp_column(frame)
+    raw = _normalise_column_aliases(_with_timestamp_column(frame))
     if _is_canonical(raw):
         canonical = _canonical_frame(raw)
     else:
@@ -82,6 +89,22 @@ def _with_timestamp_column(frame: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _normalise_column_aliases(frame: pd.DataFrame) -> pd.DataFrame:
+    rename_map: dict[str, str] = {}
+    casefolded_columns = {str(column).casefold(): column for column in frame.columns}
+    for canonical, aliases in OHLCV_COLUMN_ALIASES.items():
+        if canonical in frame.columns:
+            continue
+        for alias in aliases:
+            source_column = casefolded_columns.get(alias.casefold())
+            if source_column is not None:
+                rename_map[str(source_column)] = canonical
+                break
+    if not rename_map:
+        return frame
+    return frame.rename(columns=rename_map)
+
+
 def _canonical_frame(frame: pd.DataFrame) -> pd.DataFrame:
     canonical = frame[MARKET_REQUIRED_COLUMNS].copy()
     canonical["ts_open_utc"] = to_utc_series(canonical["ts_open_utc"])
@@ -115,13 +138,13 @@ def _normalise_ohlcv(
     normalized["ts_open_utc"] = to_utc_series(frame[timestamp_column])
     normalized["ts_close_utc"] = normalized["ts_open_utc"] + pd.Timedelta(minutes=1)
     for column in PRICE_COLUMNS:
-        normalized[column] = frame[column].map(_normalise_price).astype(float)
+        normalized[column] = _normalise_price_series(frame[column])
     normalized["volume"] = frame.get("volume", 0)
     normalized["volume"] = normalized["volume"].fillna(0).astype(int)
     normalized["trade_count"] = frame.get("trade_count", frame.get("count", 0))
     normalized["trade_count"] = normalized["trade_count"].fillna(0).astype(int)
     normalized["vwap"] = (
-        frame["vwap"].map(_normalise_price) if "vwap" in frame else _typical_price(normalized)
+        _normalise_price_series(frame["vwap"]) if "vwap" in frame else _typical_price(normalized)
     )
     normalized["symbol_root"] = symbol_root
     normalized["contract_symbol"] = _contract_symbol(frame, contract_symbol, symbol_root)
@@ -151,6 +174,15 @@ def _normalise_price(value: object) -> float:
     if abs(price) > NANO_PRICE_THRESHOLD:
         return price / NANO_PRICE_THRESHOLD
     return price
+
+
+def _normalise_price_series(series: pd.Series) -> pd.Series:
+    prices = series.astype(float)
+    scaled = prices.abs().gt(NANO_PRICE_THRESHOLD)
+    if scaled.any():
+        prices = prices.copy()
+        prices.loc[scaled] = prices.loc[scaled] / NANO_PRICE_THRESHOLD
+    return prices
 
 
 def _typical_price(frame: pd.DataFrame) -> pd.Series:

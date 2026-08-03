@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +13,7 @@ from sentiment_engine.cli import main
 from sentiment_engine.config import ensure_output_dirs, load_config
 from sentiment_engine.ingestion.posts_external_provider import TRUTHSOCIAL_PROVIDER
 from sentiment_engine.ingestion.posts_trumpstruth_feed import TRUMPSTRUTH_PROVIDER_NAME, TRUMPSTRUTH_SOURCE_NAME
+from sentiment_engine.utils.io import write_json
 
 DEFAULT_REPORT_PATH = Path("reports/bootstrap_run_report.json")
 DEFAULT_OUT_DIR = Path("data/processed")
@@ -22,6 +22,7 @@ TRUMPSTRUTH_OUT = DEFAULT_OUT_DIR / "trumpstruth_posts.parquet"
 MARKET_OUT = DEFAULT_OUT_DIR / "market_bars.parquet"
 EVENTS_OUT = DEFAULT_OUT_DIR / "real_events.parquet"
 HTTP_PREFIXES = ("http://", "https://")
+BOOTSTRAP_RECOVERABLE_FAILURES = (SystemExit, RuntimeError, ValueError, OSError)
 
 
 def parse_args() -> argparse.Namespace:
@@ -171,15 +172,10 @@ def _run_provider_ingest(args: argparse.Namespace, report: dict[str, Any]) -> st
     try:
         main(command)
         return posts_out
-    except Exception as exc:
-        code = getattr(exc, "code", None)
-        if code is None:
-            report["steps"].append({"name": "provider", "status": "failed", "code": exc.__class__.__name__})
-            print(f"provider ingest failed with {exc.__class__.__name__}: {exc}; continuing fallback")
-            return ""
-        report["steps"].append({"name": "provider", "status": "failed", "code": str(code)})
-        if int(str(code) or 0) != 0:
-            print(f"provider ingest failed with code {code}; continuing fallback")
+    except BOOTSTRAP_RECOVERABLE_FAILURES as exc:
+        _append_failed_step(report, "provider", exc)
+        if not _is_success_exit(exc):
+            print(f"provider ingest failed with {_format_failure(exc)}; continuing fallback")
             return ""
         return posts_out
 
@@ -199,15 +195,10 @@ def _run_archive_ingest(args: argparse.Namespace, report: dict[str, Any], archiv
     try:
         main(command)
         return str(ARCHIVE_OUT)
-    except Exception as exc:
-        code = getattr(exc, "code", None)
-        if code is None:
-            report["steps"].append({"name": "archive", "status": "failed", "code": exc.__class__.__name__})
-            print(f"archive ingest failed with {exc.__class__.__name__}: {exc}")
-            return ""
-        report["steps"].append({"name": "archive", "status": "failed", "code": str(code)})
-        if int(str(code) or 0) != 0:
-            print(f"archive ingest failed with code {code}; stopping")
+    except BOOTSTRAP_RECOVERABLE_FAILURES as exc:
+        _append_failed_step(report, "archive", exc)
+        if not _is_success_exit(exc):
+            print(f"archive ingest failed with {_format_failure(exc)}")
             return ""
         return str(ARCHIVE_OUT)
 
@@ -235,17 +226,10 @@ def _run_trumpstruth_feed(args: argparse.Namespace, report: dict[str, Any]) -> s
     try:
         main(command)
         return str(TRUMPSTRUTH_OUT)
-    except Exception as exc:
-        code = getattr(exc, "code", None)
-        if code is None:
-            report["steps"].append(
-                {"name": "trumpstruth_feed", "status": "failed", "code": exc.__class__.__name__}
-            )
-            print(f"trumpstruth feed ingest failed with {exc.__class__.__name__}: {exc}")
-            return ""
-        report["steps"].append({"name": "trumpstruth_feed", "status": "failed", "code": str(code)})
-        if int(str(code) or 0) != 0:
-            print(f"trumpstruth feed ingest failed with code {code}; continuing")
+    except BOOTSTRAP_RECOVERABLE_FAILURES as exc:
+        _append_failed_step(report, "trumpstruth_feed", exc)
+        if not _is_success_exit(exc):
+            print(f"trumpstruth feed ingest failed with {_format_failure(exc)}; continuing")
             return ""
         return str(TRUMPSTRUTH_OUT)
 
@@ -263,8 +247,8 @@ def _run_archive_freshness(args: argparse.Namespace, archive_url: str, posts_pat
     command.extend(["--url", archive_url])
     try:
         main(command)
-    except Exception as exc:
-        print(f"archive freshness check failed with {exc.__class__.__name__}: {exc}")
+    except BOOTSTRAP_RECOVERABLE_FAILURES as exc:
+        print(f"archive freshness check failed with {_format_failure(exc)}")
 
 
 def _run_provider_freshness(args: argparse.Namespace, posts_path: str, report: dict[str, Any]) -> None:
@@ -292,15 +276,8 @@ def _run_provider_freshness(args: argparse.Namespace, posts_path: str, report: d
 
     try:
         main(command)
-    except Exception as exc:
-        code = getattr(exc, "code", None)
-        report["steps"].append(
-            {
-                "name": "provider_freshness",
-                "status": "failed",
-                "code": str(code) if code is not None else exc.__class__.__name__,
-            }
-        )
+    except BOOTSTRAP_RECOVERABLE_FAILURES as exc:
+        _append_failed_step(report, "provider_freshness", exc)
 
 
 def _ingest_market(args: argparse.Namespace, report: dict[str, Any]) -> str:
@@ -346,9 +323,34 @@ def _build_events(posts_path: str, market_path: str | None, args: argparse.Names
 
 def _write_report(args: argparse.Namespace, report: dict[str, Any]) -> None:
     report_path = Path(args.report_out)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    write_json(report_path, report)
     print(f"bootstrap report written to {report_path}")
+
+
+def _append_failed_step(report: dict[str, Any], name: str, exc: BaseException) -> None:
+    report["steps"].append({"name": name, "status": "failed", "code": _failure_code(exc)})
+
+
+def _failure_code(exc: BaseException) -> str:
+    code = getattr(exc, "code", None)
+    return str(code) if code is not None else exc.__class__.__name__
+
+
+def _format_failure(exc: BaseException) -> str:
+    code = getattr(exc, "code", None)
+    if code is not None:
+        return f"code {code}"
+    return f"{exc.__class__.__name__}: {exc}"
+
+
+def _is_success_exit(exc: BaseException) -> bool:
+    code = getattr(exc, "code", None)
+    if code is None:
+        return False
+    try:
+        return int(str(code) or 0) == 0
+    except ValueError:
+        return False
 
 
 if __name__ == "__main__":

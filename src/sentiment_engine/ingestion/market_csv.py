@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 
-from sentiment_engine.schemas import MarketBar
 from sentiment_engine.utils.time import isoformat_z, to_utc_series
 
 MARKET_REQUIRED_COLUMNS = [
@@ -123,8 +122,33 @@ def _stale_bar_count(group: pd.DataFrame) -> int:
 
 
 def _validate_rows(frame: pd.DataFrame) -> None:
-    for row in frame.to_dict("records"):
-        MarketBar.model_validate(row)
+    missing = [column for column in MARKET_REQUIRED_COLUMNS if column not in frame.columns]
+    if missing:
+        raise ValueError(f"Market bars missing required columns: {missing}")
+    invalid_symbols = sorted(
+        set(frame["symbol_root"].dropna().astype(str).unique()).difference({"NQ", "MNQ"})
+    )
+    if invalid_symbols:
+        raise ValueError(f"Market bars contain invalid symbol_root values: {invalid_symbols}")
+    missing_text_columns = [
+        column
+        for column in ("contract_symbol", "continuous_symbol", "source_name", "session_id")
+        if frame[column].isna().any() or frame[column].astype(str).str.strip().eq("").any()
+    ]
+    if missing_text_columns:
+        raise ValueError(f"Market bars contain blank identifier columns: {missing_text_columns}")
+    invalid_close_times = frame["ts_close_utc"].le(frame["ts_open_utc"])
+    if invalid_close_times.any():
+        raise ValueError(f"Market bars contain {int(invalid_close_times.sum())} invalid close times")
+    valid = frame["is_valid_bar"].astype(bool)
+    valid_rows = frame[valid]
+    invalid_ohlc = (
+        valid_rows["high"].lt(valid_rows[["open", "close"]].max(axis=1))
+        | valid_rows["low"].gt(valid_rows[["open", "close"]].min(axis=1))
+        | valid_rows["volume"].lt(0)
+    )
+    if invalid_ohlc.any():
+        raise ValueError(f"Market bars contain {int(invalid_ohlc.sum())} invalid valid-bar OHLC rows")
 
 
 def _to_bool(value: object) -> bool:
